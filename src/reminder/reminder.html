@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meeting Starting Soon</title>
+    <link rel="stylesheet" href="reminder.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <div class="logo">
+          <img src="../../assets/icons/icon-32.png" alt="PingMeet" class="logo-icon" />
+          <span class="logo-text">PingMeet</span>
+        </div>
+        <button class="close-btn" id="closeBtn" aria-label="Close">&times;</button>
+      </header>
+
+      <main class="main">
+        <h1 class="title">Meeting Soon</h1>
+
+        <div class="countdown-container">
+          <div class="countdown" id="countdown">2:00</div>
+          <div class="countdown-label">minutes remaining</div>
+        </div>
+
+        <div class="event-title" id="eventTitle">Meeting</div>
+
+        <div class="event-details" id="eventDetails">
+          <div class="participants" id="participants"></div>
+          <div class="meeting-time" id="meetingTime"></div>
+        </div>
+
+        <!-- Enhanced: Additional Event Details Section (hidden by default) -->
+        <div class="event-meta hidden" id="eventMeta">
+          <!-- Organizer -->
+          <div class="meta-row organizer-row hidden" id="organizerRow">
+            <span class="meta-label">Organizer</span>
+            <span class="meta-value" id="organizer"></span>
+          </div>
+
+          <!-- Location -->
+          <div class="meta-row location-row hidden" id="locationRow">
+            <span class="meta-label">Location</span>
+            <span class="meta-value" id="location"></span>
+          </div>
+
+          <!-- Description -->
+          <div class="meta-row description-row hidden" id="descriptionRow">
+            <span class="meta-label">Notes</span>
+            <div class="meta-value description-content" id="description"></div>
+          </div>
+
+          <!-- Dial-in Info -->
+          <div class="meta-row dialin-row hidden" id="dialInRow">
+            <span class="meta-label">Dial-in</span>
+            <div class="meta-value dialin-content" id="dialIn">
+              <div class="phone-number" id="phoneNumber"></div>
+              <div class="conference-id" id="conferenceId"></div>
+              <div class="pin-code" id="pinCode"></div>
+            </div>
+          </div>
+
+          <!-- Meeting ID / Passcode -->
+          <div class="meta-row meeting-id-row hidden" id="meetingIdRow">
+            <span class="meta-label">Meeting ID</span>
+            <span class="meta-value copyable" id="meetingId" title="Click to copy"></span>
+          </div>
+
+          <!-- Passcode -->
+          <div class="meta-row passcode-row hidden" id="passcodeRow">
+            <span class="meta-label">Passcode</span>
+            <span class="meta-value copyable" id="passcode" title="Click to copy"></span>
+          </div>
+
+          <!-- Calendar Link -->
+          <div class="meta-row calendar-link-row hidden" id="calendarLinkRow">
+            <a href="#" id="calendarLink" target="_blank" class="calendar-link">
+              <span>Open in Calendar</span>
+              <span style="opacity: 0.5;">&rarr;</span>
+            </a>
+          </div>
+        </div>
+
+        <button class="join-btn" id="joinBtn">Join Meeting</button>
+
+        <button class="late-btn" id="lateBtn">Running Late</button>
+
+        <div class="actions">
+          <div class="snooze-group">
+            <button class="action-btn snooze-btn" id="snooze30s">30s</button>
+            <button class="action-btn snooze-btn" id="snooze1m">1m</button>
+            <button class="action-btn snooze-btn" id="snooze5m">5m</button>
+          </div>
+          <div class="bottom-actions">
+            <button class="action-btn decline-btn" id="declineBtn">Decline</button>
+            <button class="action-btn dismiss-btn" id="dismissBtn">Dismiss</button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="reminder.js"></script>
+  </body>
+</html>

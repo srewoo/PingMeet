@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "PingMeet",
+  "version": "1.0.0",
+  "description": "Never miss a meeting - Get notified 2 minutes before your meetings start",
+
+  "permissions": [
+    "notifications",
+    "alarms",
+    "storage",
+    "tabs",
+    "offscreen",
+    "downloads",
+    "identity"
+  ],
+  
+  "host_permissions": [
+    "https://calendar.google.com/*",
+    "https://outlook.office.com/*",
+    "https://outlook.live.com/*"
+  ],
+  
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["https://calendar.google.com/*"],
+      "js": ["src/content/calendar-reader.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://outlook.office.com/*",
+        "https://outlook.live.com/*"
+      ],
+      "js": ["src/content/outlook-reader.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "assets/icons/icon-16.png",
+      "32": "assets/icons/icon-32.png",
+      "48": "assets/icons/icon-48.png",
+      "128": "assets/icons/icon-128.png"
+    }
+  },
+  
+  "icons": {
+    "16": "assets/icons/icon-16.png",
+    "48": "assets/icons/icon-48.png",
+    "128": "assets/icons/icon-128.png"
+  },
+  
+  "web_accessible_resources": [{
+    "resources": ["assets/sounds/*", "src/reminder/*", "src/content/injected-script.js"],
+    "matches": ["https://calendar.google.com/*", "https://outlook.office.com/*", "https://outlook.live.com/*"]
+  }]
+}
+

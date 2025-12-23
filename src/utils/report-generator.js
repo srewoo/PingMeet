@@ -1,0 +1,389 @@
+/**
+ * Report Generator - Creates weekly meeting reports
+ */
+
+import { DurationTracker } from './duration-tracker.js';
+
+export class ReportGenerator {
+  /**
+   * Generate weekly report HTML
+   * @returns {Promise<string>} HTML content
+   */
+  static async generateWeeklyReport() {
+    const stats = await DurationTracker.getStatistics();
+    const breakdown = await DurationTracker.getWeeklyBreakdown();
+    const platformBreakdown = await DurationTracker.getPlatformBreakdown();
+
+    const today = new Date();
+    const weekStart = new Date(today);
+    weekStart.setDate(weekStart.getDate() - 6);
+
+    const reportHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>PingMeet Weekly Report</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f8f9fa;
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+    }
+    h1 {
+      margin: 0 0 10px 0;
+      font-size: 32px;
+    }
+    .subtitle {
+      opacity: 0.9;
+      font-size: 16px;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .stat-label {
+      font-size: 12px;
+      color: #6c757d;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #667eea;
+    }
+    .section {
+      background: white;
+      padding: 25px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: #212529;
+    }
+    .bar-chart {
+      margin: 10px 0;
+    }
+    .bar-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .bar-label {
+      width: 100px;
+      font-size: 12px;
+      color: #495057;
+    }
+    .bar-container {
+      flex: 1;
+      height: 24px;
+      background: #e9ecef;
+      border-radius: 4px;
+      margin: 0 10px;
+      position: relative;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      border-radius: 4px;
+      transition: width 0.3s;
+    }
+    .bar-value {
+      font-size: 12px;
+      font-weight: 600;
+      color: #495057;
+      min-width: 50px;
+    }
+    .platform-list {
+      list-style: none;
+      padding: 0;
+    }
+    .platform-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px;
+      border-bottom: 1px solid #e9ecef;
+    }
+    .platform-item:last-child {
+      border-bottom: none;
+    }
+    .platform-name {
+      font-weight: 500;
+    }
+    .platform-time {
+      color: #667eea;
+      font-weight: 600;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 40px;
+      padding: 20px;
+      color: #6c757d;
+      font-size: 14px;
+    }
+    @media print {
+      body {
+        background: white;
+      }
+      .header {
+        break-inside: avoid;
+      }
+      .section {
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Weekly Meeting Report</h1>
+    <div class="subtitle">
+      ${this.formatDate(weekStart)} - ${this.formatDate(today)}
+    </div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="stat-card">
+      <div class="stat-label">Total Meeting Time</div>
+      <div class="stat-value">${stats.week.formatted}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Number of Meetings</div>
+      <div class="stat-value">${stats.week.meetingCount}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Daily Average</div>
+      <div class="stat-value">${DurationTracker.formatDuration(stats.week.dailyAverage)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Meeting Length</div>
+      <div class="stat-value">${stats.averageMeetingLength.formatted}</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Daily Breakdown</div>
+    <div class="bar-chart">
+      ${this.renderDailyBreakdown(breakdown)}
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Meeting Platforms</div>
+    <ul class="platform-list">
+      ${this.renderPlatformBreakdown(platformBreakdown)}
+    </ul>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Insights</div>
+    ${this.generateInsights(stats, breakdown, platformBreakdown)}
+  </div>
+
+  <div class="footer">
+    Generated by PingMeet on ${this.formatDateTime(today)}
+    <br>
+    <small>This report is based on meetings you joined through PingMeet</small>
+  </div>
+
+  <script>
+    // Print button functionality
+    window.addEventListener('load', () => {
+      const printBtn = document.createElement('button');
+      printBtn.textContent = 'Print Report';
+      printBtn.style.cssText = 'position: fixed; top: 20px; right: 20px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 4px 8px rgba(0,0,0,0.2);';
+      printBtn.onclick = () => window.print();
+      document.body.appendChild(printBtn);
+    });
+  </script>
+</body>
+</html>
+    `;
+
+    return reportHtml;
+  }
+
+  /**
+   * Render daily breakdown bars
+   */
+  static renderDailyBreakdown(breakdown) {
+    const maxMinutes = Math.max(...Object.values(breakdown));
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    return Object.entries(breakdown).map(([date, minutes]) => {
+      const dateObj = new Date(date);
+      const dayName = days[dateObj.getDay()];
+      const percentage = maxMinutes > 0 ? (minutes / maxMinutes) * 100 : 0;
+      const formatted = DurationTracker.formatDuration(minutes);
+
+      return `
+        <div class="bar-row">
+          <div class="bar-label">${dayName} ${dateObj.getDate()}</div>
+          <div class="bar-container">
+            <div class="bar-fill" style="width: ${percentage}%"></div>
+          </div>
+          <div class="bar-value">${formatted}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  /**
+   * Render platform breakdown
+   */
+  static renderPlatformBreakdown(platformBreakdown) {
+    const sorted = Object.entries(platformBreakdown)
+      .sort((a, b) => b[1] - a[1]);
+
+    if (sorted.length === 0) {
+      return '<li class="platform-item">No platform data available</li>';
+    }
+
+    return sorted.map(([platform, minutes]) => {
+      const formatted = DurationTracker.formatDuration(minutes);
+      return `
+        <li class="platform-item">
+          <span class="platform-name">${platform}</span>
+          <span class="platform-time">${formatted}</span>
+        </li>
+      `;
+    }).join('');
+  }
+
+  /**
+   * Generate insights
+   */
+  static generateInsights(stats, breakdown, platformBreakdown) {
+    const insights = [];
+
+    // Most productive day
+    const maxDay = Object.entries(breakdown).reduce((max, [date, minutes]) =>
+      minutes > max.minutes ? { date, minutes } : max,
+      { date: null, minutes: 0 }
+    );
+
+    if (maxDay.date) {
+      const dayName = new Date(maxDay.date).toLocaleDateString('en-US', { weekday: 'long' });
+      insights.push(`<strong>Busiest Day:</strong> ${dayName} with ${DurationTracker.formatDuration(maxDay.minutes)} in meetings`);
+    }
+
+    // Light day
+    const minDay = Object.entries(breakdown).reduce((min, [date, minutes]) =>
+      (minutes > 0 && (min.minutes === 0 || minutes < min.minutes)) ? { date, minutes } : min,
+      { date: null, minutes: 0 }
+    );
+
+    if (minDay.date) {
+      const dayName = new Date(minDay.date).toLocaleDateString('en-US', { weekday: 'long' });
+      insights.push(`<strong>Lightest Day:</strong> ${dayName} with ${DurationTracker.formatDuration(minDay.minutes)} in meetings`);
+    }
+
+    // Most used platform
+    const topPlatform = Object.entries(platformBreakdown).sort((a, b) => b[1] - a[1])[0];
+    if (topPlatform) {
+      insights.push(`<strong>Top Platform:</strong> ${topPlatform[0]} (${DurationTracker.formatDuration(topPlatform[1])})`);
+    }
+
+    // Longest meeting
+    if (stats.longestMeeting.minutes > 0) {
+      insights.push(`<strong>Longest Meeting:</strong> ${stats.longestMeeting.formatted} - "${stats.longestMeeting.title}"`);
+    }
+
+    // Weekly average
+    insights.push(`<strong>Daily Average:</strong> ${DurationTracker.formatDuration(stats.week.dailyAverage)} per day`);
+
+    return insights.map(i => `<p>${i}</p>`).join('');
+  }
+
+  /**
+   * Format date for display
+   */
+  static formatDate(date) {
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  }
+
+  /**
+   * Format datetime for display
+   */
+  static formatDateTime(date) {
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  }
+
+  /**
+   * Download report as HTML file
+   */
+  static async downloadReport() {
+    try {
+      const html = await this.generateWeeklyReport();
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+
+      const today = new Date();
+      const filename = `PingMeet-Weekly-Report-${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}.html`;
+
+      // Download using Chrome downloads API
+      await chrome.downloads.download({
+        url: url,
+        filename: filename,
+        saveAs: true
+      });
+
+      console.log(`PingMeet: Report downloaded as ${filename}`);
+    } catch (error) {
+      console.error('PingMeet: Error downloading report', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Open report in new tab
+   */
+  static async openReport() {
+    try {
+      const html = await this.generateWeeklyReport();
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+
+      await chrome.tabs.create({ url: url });
+
+      console.log('PingMeet: Report opened in new tab');
+    } catch (error) {
+      console.error('PingMeet: Error opening report', error);
+      throw error;
+    }
+  }
+}

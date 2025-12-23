@@ -1,0 +1,30 @@
+{
+  "name": "pingmeet",
+  "version": "1.0.0",
+  "description": "Chrome extension that alerts you 2 minutes before meetings",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "lint": "eslint src/ --max-warnings=0",
+    "format": "prettier --write \"src/**/*.{js,html,css}\"",
+    "build": "node scripts/build.js",
+    "package": "node scripts/package.js"
+  },
+  "keywords": [
+    "chrome-extension",
+    "calendar",
+    "meetings",
+    "notifications",
+    "productivity"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.5",
+    "archiver": "^6.0.1",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  }
+}
+
