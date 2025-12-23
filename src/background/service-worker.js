@@ -346,7 +346,12 @@ class PingMeetService {
       return;
     }
 
-    const alarmName = `${ALARM_NAMES.MEETING_PREFIX}${event.id}`;
+    // Use normalized alarm key based on title + rounded start time
+    // This prevents duplicate alarms for the same meeting from different sources
+    const startTime = new Date(event.startTime);
+    const roundedTime = Math.floor(startTime.getTime() / 60000) * 60000; // Round to minute
+    const normalizedTitle = (event.title || '').toLowerCase().trim().replace(/\s+/g, '-');
+    const alarmName = `${ALARM_NAMES.MEETING_PREFIX}${normalizedTitle}_${roundedTime}`;
 
     // Check Chrome's actual alarms (survives service worker restart)
     const existingAlarm = await chrome.alarms.get(alarmName);
@@ -356,7 +361,6 @@ class PingMeetService {
     }
 
     const settings = await StorageManager.getSettings();
-    const startTime = new Date(event.startTime);
     const reminderTime = new Date(
       startTime.getTime() - settings.reminderMinutes * TIME.ONE_MINUTE_MS
     );
