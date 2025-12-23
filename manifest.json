@@ -13,7 +13,15 @@
     "downloads",
     "identity"
   ],
-  
+
+  "oauth2": {
+    "client_id": "105123501762-567dbrodjs5obu2vdhbop3d946mgilov.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/userinfo.email"
+    ]
+  },
+
   "host_permissions": [
     "https://calendar.google.com/*",
     "https://outlook.office.com/*",

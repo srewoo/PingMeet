@@ -16,6 +16,11 @@ export class CalendarAPI {
   static MS_AUTH_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
   static MS_TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
 
+  // Pre-configured Outlook Client ID for one-click auth
+  // This is a multi-tenant app registered by the developer
+  // Users can connect with any Microsoft account without creating their own app
+  static OUTLOOK_CLIENT_ID = '95657014-019b-42bc-b0c1-23719004637c';
+
   static STORAGE_KEY = 'calendarConnection';
   static CREDENTIALS_KEY = 'calendarCredentials';
 
@@ -473,6 +478,135 @@ export class CalendarAPI {
       return { success: true, email: userEmail };
     } catch (error) {
       console.error('PingMeet: Outlook Calendar connection failed', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Connect to Outlook Calendar using pre-configured client ID (one-click)
+   * No user setup required - uses developer's multi-tenant Azure AD app
+   */
+  static async connectOutlookSimple() {
+    try {
+      // Check if we have a pre-configured client ID
+      if (!this.OUTLOOK_CLIENT_ID || this.OUTLOOK_CLIENT_ID === 'YOUR_OUTLOOK_CLIENT_ID_HERE') {
+        return {
+          success: false,
+          error: 'One-click Outlook not configured. Please use Advanced mode.',
+          needsAdvanced: true
+        };
+      }
+
+      const clientId = this.OUTLOOK_CLIENT_ID;
+      const redirectUri = this.getRedirectUri();
+      const scopes = [
+        'openid',
+        'profile',
+        'email',
+        'offline_access',
+        'User.Read',
+        'Calendars.ReadWrite'
+      ].join(' ');
+
+      // Generate PKCE code verifier and challenge
+      const codeVerifier = this.generateCodeVerifier();
+      const codeChallenge = await this.generateCodeChallenge(codeVerifier);
+
+      // Build OAuth URL with PKCE
+      const authParams = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: scopes,
+        response_mode: 'query',
+        prompt: 'select_account',  // Let user choose account
+        code_challenge: codeChallenge,
+        code_challenge_method: 'S256'
+      });
+
+      const authUrl = `${this.MS_AUTH_URL}?${authParams.toString()}`;
+
+      // Launch OAuth flow
+      const responseUrl = await new Promise((resolve, reject) => {
+        chrome.identity.launchWebAuthFlow(
+          { url: authUrl, interactive: true },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+            } else if (!response) {
+              reject(new Error('No response from OAuth flow'));
+            } else {
+              resolve(response);
+            }
+          }
+        );
+      });
+
+      // Extract authorization code from response URL
+      const url = new URL(responseUrl);
+      const authCode = url.searchParams.get('code');
+
+      if (!authCode) {
+        const error = url.searchParams.get('error_description') || 'No authorization code received';
+        return { success: false, error };
+      }
+
+      // Exchange authorization code for tokens (with PKCE - no client_secret needed)
+      const tokenResponse = await fetch(this.MS_TOKEN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          code: authCode,
+          code_verifier: codeVerifier,
+          grant_type: 'authorization_code',
+          redirect_uri: redirectUri,
+          scope: scopes
+        })
+      });
+
+      if (!tokenResponse.ok) {
+        const error = await tokenResponse.json();
+        return { success: false, error: error.error_description || 'Token exchange failed' };
+      }
+
+      const tokens = await tokenResponse.json();
+      const { access_token, refresh_token, expires_in } = tokens;
+
+      if (!access_token) {
+        return { success: false, error: 'No access token received' };
+      }
+
+      // Calculate expiry time
+      const expiresAt = Date.now() + (parseInt(expires_in) * 1000);
+
+      // Fetch user info
+      let userEmail = 'Connected';
+      try {
+        const userInfo = await this.fetchOutlookUserInfo(access_token);
+        userEmail = userInfo.mail || userInfo.userPrincipalName || 'Connected';
+      } catch (error) {
+        console.warn('PingMeet: Could not fetch user info, but connection successful', error);
+      }
+
+      // Store connection status with tokens
+      await this.saveConnection('outlook', {
+        connected: true,
+        email: userEmail,
+        accessToken: access_token,
+        refreshToken: refresh_token,
+        expiresAt: expiresAt,
+        authMode: 'simple',  // Mark as simple auth mode
+        connectedAt: new Date().toISOString()
+      });
+
+      // Save the client ID used (for token refresh)
+      await this.saveCredentials('outlook', { clientId });
+
+      console.log('PingMeet: Connected to Outlook Calendar (Simple Mode)', userEmail);
+      return { success: true, email: userEmail };
+    } catch (error) {
+      console.error('PingMeet: Outlook Calendar simple connection failed', error);
       return { success: false, error: error.message };
     }
   }

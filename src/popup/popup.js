@@ -89,14 +89,30 @@ class PopupUI {
     this.safeAddEventListener('googleToggleBtn', 'click', () => this.toggleGoogleSetup());
     this.safeAddEventListener('outlookToggleBtn', 'click', () => this.toggleOutlookSetup());
 
-    // Google Calendar connection buttons
+    // Google Calendar connection buttons - Simple mode
+    this.safeAddEventListener('googleSimpleConnectBtn', 'click', () => this.handleGoogleSimpleConnect());
+    this.safeAddEventListener('googleSimpleDisconnectBtn', 'click', () => this.handleGoogleDisconnect());
+
+    // Google Calendar connection buttons - Advanced mode
     this.safeAddEventListener('googleConnectBtn', 'click', () => this.handleGoogleConnect());
     this.safeAddEventListener('googleDisconnectBtn', 'click', () => this.handleGoogleDisconnect());
 
-    // Outlook Calendar buttons
+    // Simple/Advanced mode toggles
+    this.safeAddEventListener('showAdvancedGoogleBtn', 'click', () => this.showGoogleAdvancedMode());
+    this.safeAddEventListener('showSimpleGoogleBtn', 'click', () => this.showGoogleSimpleMode());
+
+    // Outlook Calendar buttons - Simple mode
+    this.safeAddEventListener('outlookSimpleConnectBtn', 'click', () => this.handleOutlookSimpleConnect());
+    this.safeAddEventListener('outlookSimpleDisconnectBtn', 'click', () => this.handleOutlookDisconnect());
+
+    // Outlook Calendar buttons - Advanced mode
     this.safeAddEventListener('outlookConnectBtn', 'click', () => this.handleOutlookConnect());
     this.safeAddEventListener('outlookDisconnectBtn', 'click', () => this.handleOutlookDisconnect());
     this.safeAddEventListener('outlookOpenBtn', 'click', () => this.openOutlookCalendar());
+
+    // Outlook Simple/Advanced mode toggles
+    this.safeAddEventListener('showAdvancedOutlookBtn', 'click', () => this.showOutlookAdvancedMode());
+    this.safeAddEventListener('showSimpleOutlookBtn', 'click', () => this.showOutlookSimpleMode());
 
     // Footer help link
     const footerHelp = document.getElementById('footerHelp');
@@ -223,10 +239,15 @@ class PopupUI {
    * Handle Outlook Calendar disconnect
    */
   async handleOutlookDisconnect() {
-    const btn = document.getElementById('outlookDisconnectBtn');
+    // Get the correct disconnect button based on what's visible
+    const advancedBtn = document.getElementById('outlookDisconnectBtn');
+    const simpleBtn = document.getElementById('outlookSimpleDisconnectBtn');
+    const btn = advancedBtn?.classList.contains('hidden') ? simpleBtn : advancedBtn;
 
-    btn.disabled = true;
-    btn.textContent = 'Disconnecting...';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Disconnecting...';
+    }
 
     try {
       const result = await CalendarAPI.disconnectOutlook();
@@ -240,9 +261,72 @@ class PopupUI {
       console.error('PingMeet: Outlook disconnect error', error);
       alert('Disconnect error: ' + error.message);
     } finally {
-      btn.disabled = false;
+      if (btn) {
+        btn.disabled = false;
+      }
       await this.updateCalendarConnectionStatus();
     }
+  }
+
+  /**
+   * Handle Outlook Calendar one-click connect (simple mode)
+   */
+  async handleOutlookSimpleConnect() {
+    const btn = document.getElementById('outlookSimpleConnectBtn');
+
+    btn.disabled = true;
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" class="spinner"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><path fill="currentColor" d="M12 2a10 10 0 0 1 10 10h-2a8 8 0 0 0-8-8V2z"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></path></svg> Connecting...';
+
+    try {
+      const result = await CalendarAPI.connectOutlookSimple();
+      if (result.success) {
+        await this.updateCalendarConnectionStatus();
+        // Fetch events from API
+        await this.syncCalendarEvents();
+      } else {
+        // Check if needs advanced mode
+        if (result.needsAdvanced) {
+          alert('One-click Outlook connection is not configured yet. Please use Advanced mode to enter your Azure App credentials.\n\nOnce the developer configures the app, one-click will work for everyone.');
+          this.showOutlookAdvancedMode();
+        } else {
+          alert('Failed to connect: ' + result.error);
+        }
+      }
+    } catch (error) {
+      console.error('PingMeet: Simple Outlook connection error', error);
+      alert('Connection error: ' + error.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 23 23" style="margin-right: 8px;">
+        <path fill="#f25022" d="M0 0h11v11H0z"/>
+        <path fill="#00a4ef" d="M0 12h11v11H0z"/>
+        <path fill="#7fba00" d="M12 0h11v11H12z"/>
+        <path fill="#ffb900" d="M12 12h11v11H12z"/>
+      </svg> Connect with Microsoft`;
+      await this.updateCalendarConnectionStatus();
+    }
+  }
+
+  /**
+   * Show Outlook Advanced mode (custom Azure App)
+   */
+  showOutlookAdvancedMode() {
+    const simpleSection = document.getElementById('outlookSimpleSection');
+    const advancedSection = document.getElementById('outlookAdvancedSection');
+
+    if (simpleSection) simpleSection.classList.add('hidden');
+    if (advancedSection) advancedSection.classList.remove('hidden');
+  }
+
+  /**
+   * Show Outlook Simple mode (one-click connect)
+   */
+  showOutlookSimpleMode() {
+    const simpleSection = document.getElementById('outlookSimpleSection');
+    const advancedSection = document.getElementById('outlookAdvancedSection');
+
+    if (advancedSection) advancedSection.classList.add('hidden');
+    if (simpleSection) simpleSection.classList.remove('hidden');
   }
 
   /**
@@ -300,10 +384,15 @@ class PopupUI {
    * Handle Google Calendar disconnect
    */
   async handleGoogleDisconnect() {
-    const btn = document.getElementById('googleDisconnectBtn');
+    // Get the correct disconnect button based on what's visible
+    const advancedBtn = document.getElementById('googleDisconnectBtn');
+    const simpleBtn = document.getElementById('googleSimpleDisconnectBtn');
+    const btn = advancedBtn?.classList.contains('hidden') ? simpleBtn : advancedBtn;
 
-    btn.disabled = true;
-    btn.textContent = 'Disconnecting...';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Disconnecting...';
+    }
 
     try {
       const result = await CalendarAPI.disconnectGoogle();
@@ -318,9 +407,77 @@ class PopupUI {
       console.error('PingMeet: Calendar disconnect error', error);
       alert('Disconnect error: ' + error.message);
     } finally {
-      btn.disabled = false;
+      if (btn) {
+        btn.disabled = false;
+      }
       await this.updateCalendarConnectionStatus();
     }
+  }
+
+  /**
+   * Handle Google Calendar one-click connect (simple mode)
+   */
+  async handleGoogleSimpleConnect() {
+    const btn = document.getElementById('googleSimpleConnectBtn');
+
+    btn.disabled = true;
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" class="spinner"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><path fill="currentColor" d="M12 2a10 10 0 0 1 10 10h-2a8 8 0 0 0-8-8V2z"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></path></svg> Connecting...';
+
+    try {
+      const result = await CalendarAPI.connectGoogleSimple();
+      if (result.success) {
+        await this.updateCalendarConnectionStatus();
+        // Fetch events from API
+        await this.syncCalendarEvents();
+      } else {
+        // Check for specific error about client_id
+        if (result.error.includes('bad client id') || result.error.includes('OAuth2 not granted')) {
+          alert('One-click connection requires setup. Please use Advanced mode to enter your OAuth credentials.\n\nThis is a one-time setup that enables one-click authentication.');
+          this.showGoogleAdvancedMode();
+        } else {
+          alert('Failed to connect: ' + result.error);
+        }
+      }
+    } catch (error) {
+      console.error('PingMeet: Simple Google connection error', error);
+      if (error.message.includes('bad client id') || error.message.includes('OAuth2 not granted')) {
+        alert('One-click connection requires setup. Please use Advanced mode to enter your OAuth credentials.\n\nThis is a one-time setup that enables one-click authentication.');
+        this.showGoogleAdvancedMode();
+      } else {
+        alert('Connection error: ' + error.message);
+      }
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" style="margin-right: 8px;">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg> Connect with Google`;
+      await this.updateCalendarConnectionStatus();
+    }
+  }
+
+  /**
+   * Show Google Advanced mode (custom OAuth credentials)
+   */
+  showGoogleAdvancedMode() {
+    const simpleSection = document.getElementById('googleSimpleSection');
+    const advancedSection = document.getElementById('googleAdvancedSection');
+
+    if (simpleSection) simpleSection.classList.add('hidden');
+    if (advancedSection) advancedSection.classList.remove('hidden');
+  }
+
+  /**
+   * Show Google Simple mode (one-click connect)
+   */
+  showGoogleSimpleMode() {
+    const simpleSection = document.getElementById('googleSimpleSection');
+    const advancedSection = document.getElementById('googleAdvancedSection');
+
+    if (advancedSection) advancedSection.classList.add('hidden');
+    if (simpleSection) simpleSection.classList.remove('hidden');
   }
 
   /**
@@ -401,6 +558,10 @@ class PopupUI {
     // Google connection
     const googleCard = document.getElementById('googleConnection');
     const googleStatus = document.getElementById('googleStatus');
+    // Simple mode buttons
+    const googleSimpleConnectBtn = document.getElementById('googleSimpleConnectBtn');
+    const googleSimpleDisconnectBtn = document.getElementById('googleSimpleDisconnectBtn');
+    // Advanced mode buttons
     const googleConnectBtn = document.getElementById('googleConnectBtn');
     const googleDisconnectBtn = document.getElementById('googleDisconnectBtn');
     const googleClientIdInput = document.getElementById('googleClientId');
@@ -414,26 +575,71 @@ class PopupUI {
       googleClientSecretInput.value = googleCredentials.clientSecret;
     }
 
+    // Check auth mode to determine which section to show
+    const authMode = connection.calendarConnection?.google?.authMode;
+
     if (status.google) {
       const email = connection.calendarConnection?.google?.email || 'Connected';
       googleCard.classList.add('connected');
       googleStatus.textContent = email;
       googleStatus.classList.add('connected');
-      googleConnectBtn.classList.add('hidden');
-      googleDisconnectBtn.classList.remove('hidden');
-      googleDisconnectBtn.textContent = 'Disconnect';
+
+      // Show disconnect button in the appropriate section
+      if (authMode === 'simple') {
+        // Show simple mode disconnect
+        if (googleSimpleConnectBtn) googleSimpleConnectBtn.classList.add('hidden');
+        if (googleSimpleDisconnectBtn) {
+          googleSimpleDisconnectBtn.classList.remove('hidden');
+          googleSimpleDisconnectBtn.textContent = 'Disconnect';
+        }
+        // Hide advanced section buttons
+        if (googleConnectBtn) googleConnectBtn.classList.add('hidden');
+        if (googleDisconnectBtn) googleDisconnectBtn.classList.add('hidden');
+      } else {
+        // Show advanced mode disconnect
+        if (googleConnectBtn) googleConnectBtn.classList.add('hidden');
+        if (googleDisconnectBtn) {
+          googleDisconnectBtn.classList.remove('hidden');
+          googleDisconnectBtn.textContent = 'Disconnect';
+        }
+        // Hide simple section buttons
+        if (googleSimpleConnectBtn) googleSimpleConnectBtn.classList.add('hidden');
+        if (googleSimpleDisconnectBtn) googleSimpleDisconnectBtn.classList.add('hidden');
+        // Switch to advanced mode view
+        this.showGoogleAdvancedMode();
+      }
     } else {
       googleCard.classList.remove('connected');
       googleStatus.textContent = 'Not connected';
       googleStatus.classList.remove('connected');
-      googleConnectBtn.classList.remove('hidden');
-      googleConnectBtn.textContent = 'Connect';
-      googleDisconnectBtn.classList.add('hidden');
+
+      // Reset simple mode buttons
+      if (googleSimpleConnectBtn) {
+        googleSimpleConnectBtn.classList.remove('hidden');
+        googleSimpleConnectBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" style="margin-right: 8px;">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg> Connect with Google`;
+      }
+      if (googleSimpleDisconnectBtn) googleSimpleDisconnectBtn.classList.add('hidden');
+
+      // Reset advanced mode buttons
+      if (googleConnectBtn) {
+        googleConnectBtn.classList.remove('hidden');
+        googleConnectBtn.textContent = 'Connect';
+      }
+      if (googleDisconnectBtn) googleDisconnectBtn.classList.add('hidden');
     }
 
     // Outlook connection
     const outlookCard = document.getElementById('outlookConnection');
     const outlookStatus = document.getElementById('outlookStatus');
+    // Simple mode buttons
+    const outlookSimpleConnectBtn = document.getElementById('outlookSimpleConnectBtn');
+    const outlookSimpleDisconnectBtn = document.getElementById('outlookSimpleDisconnectBtn');
+    // Advanced mode buttons
     const outlookConnectBtn = document.getElementById('outlookConnectBtn');
     const outlookDisconnectBtn = document.getElementById('outlookDisconnectBtn');
     const outlookClientIdInput = document.getElementById('outlookClientId');
@@ -443,21 +649,62 @@ class PopupUI {
       outlookClientIdInput.value = outlookCredentials.clientId;
     }
 
+    // Check auth mode to determine which section to show
+    const outlookAuthMode = connection.calendarConnection?.outlook?.authMode;
+
     if (status.outlook) {
       const email = connection.calendarConnection?.outlook?.email || 'Connected';
       outlookCard.classList.add('connected');
       outlookStatus.textContent = email;
       outlookStatus.classList.add('connected');
-      outlookConnectBtn.classList.add('hidden');
-      outlookDisconnectBtn.classList.remove('hidden');
-      outlookDisconnectBtn.textContent = 'Disconnect';
+
+      // Show disconnect button in the appropriate section
+      if (outlookAuthMode === 'simple') {
+        // Show simple mode disconnect
+        if (outlookSimpleConnectBtn) outlookSimpleConnectBtn.classList.add('hidden');
+        if (outlookSimpleDisconnectBtn) {
+          outlookSimpleDisconnectBtn.classList.remove('hidden');
+          outlookSimpleDisconnectBtn.textContent = 'Disconnect';
+        }
+        // Hide advanced section buttons
+        if (outlookConnectBtn) outlookConnectBtn.classList.add('hidden');
+        if (outlookDisconnectBtn) outlookDisconnectBtn.classList.add('hidden');
+      } else {
+        // Show advanced mode disconnect
+        if (outlookConnectBtn) outlookConnectBtn.classList.add('hidden');
+        if (outlookDisconnectBtn) {
+          outlookDisconnectBtn.classList.remove('hidden');
+          outlookDisconnectBtn.textContent = 'Disconnect';
+        }
+        // Hide simple section buttons
+        if (outlookSimpleConnectBtn) outlookSimpleConnectBtn.classList.add('hidden');
+        if (outlookSimpleDisconnectBtn) outlookSimpleDisconnectBtn.classList.add('hidden');
+        // Switch to advanced mode view
+        this.showOutlookAdvancedMode();
+      }
     } else {
       outlookCard.classList.remove('connected');
       outlookStatus.textContent = 'Not connected';
       outlookStatus.classList.remove('connected');
-      outlookConnectBtn.classList.remove('hidden');
-      outlookConnectBtn.textContent = 'Connect';
-      outlookDisconnectBtn.classList.add('hidden');
+
+      // Reset simple mode buttons
+      if (outlookSimpleConnectBtn) {
+        outlookSimpleConnectBtn.classList.remove('hidden');
+        outlookSimpleConnectBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 23 23" style="margin-right: 8px;">
+          <path fill="#f25022" d="M0 0h11v11H0z"/>
+          <path fill="#00a4ef" d="M0 12h11v11H0z"/>
+          <path fill="#7fba00" d="M12 0h11v11H12z"/>
+          <path fill="#ffb900" d="M12 12h11v11H12z"/>
+        </svg> Connect with Microsoft`;
+      }
+      if (outlookSimpleDisconnectBtn) outlookSimpleDisconnectBtn.classList.add('hidden');
+
+      // Reset advanced mode buttons
+      if (outlookConnectBtn) {
+        outlookConnectBtn.classList.remove('hidden');
+        outlookConnectBtn.textContent = 'Connect';
+      }
+      if (outlookDisconnectBtn) outlookDisconnectBtn.classList.add('hidden');
     }
 
     // Show API warning if neither Google nor Outlook API is connected
