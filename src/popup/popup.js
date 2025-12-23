@@ -841,12 +841,14 @@ class PopupUI {
         { value: 'o1-mini', label: 'O1 Mini (Reasoning)' }
       ],
       anthropic: [
-        { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
-        { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
-        { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' }
+        { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4.5' },
+        { value: 'claude-3-5-sonnet-20241022', label: 'Claude Sonnet 3.5' },
+        { value: 'claude-3-5-haiku-20241022', label: 'Claude Haiku 3.5' },
+        { value: 'claude-3-opus-20240229', label: 'Claude Opus 3' }
       ],
       google: [
         { value: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash' },
+        { value: 'gemini-2.0-pro-exp', label: 'Gemini 2.0 Pro' },
         { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
         { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' }
       ],
