@@ -92,11 +92,42 @@ export class NotificationManager {
   }
 
   /**
+   * Sanitize event data for JSON serialization
+   * Removes complex nested objects that might cause circular references
+   */
+  static sanitizeEventData(event) {
+    return {
+      id: event.id,
+      title: event.title,
+      startTime: event.startTime,
+      endTime: event.endTime,
+      location: event.location,
+      description: event.description,
+      meetingLink: event.meetingLink,
+      htmlLink: event.htmlLink,
+      source: event.source,
+      organizer: event.organizer ? {
+        name: event.organizer.name,
+        email: event.organizer.email
+      } : null,
+      attendees: (event.attendees || []).map(a => ({
+        name: a.name,
+        email: a.email,
+        responseStatus: a.responseStatus,
+        self: a.self
+      })),
+      dialIn: event.dialIn
+    };
+  }
+
+  /**
    * Show reminder popup window (key mechanism for bringing Chrome forward)
    * @param {Object} event - Meeting event object
    */
   static async showReminderWindow(event) {
-    const eventData = encodeURIComponent(JSON.stringify(event));
+    // Sanitize event data to avoid JSON serialization issues
+    const sanitizedEvent = this.sanitizeEventData(event);
+    const eventData = encodeURIComponent(JSON.stringify(sanitizedEvent));
 
     try {
       // Get all displays to determine optimal positioning

@@ -116,6 +116,16 @@ class PopupUI {
 
     // Display actual extension ID in redirect URI
     this.displayRedirectUri();
+
+    // Event delegation for decline buttons (dynamically created)
+    document.addEventListener('click', async (e) => {
+      if (e.target.closest('.event-decline-btn')) {
+        const btn = e.target.closest('.event-decline-btn');
+        const eventId = btn.dataset.eventId;
+        const source = btn.dataset.source;
+        await this.handleDeclineMeeting(eventId, source);
+      }
+    });
   }
 
   /**
@@ -314,6 +324,39 @@ class PopupUI {
   }
 
   /**
+   * Handle declining a meeting
+   */
+  async handleDeclineMeeting(eventId, source) {
+    if (!confirm('Decline this meeting?')) {
+      return;
+    }
+
+    try {
+      let result;
+      if (source.includes('google')) {
+        result = await CalendarAPI.declineGoogleEvent(eventId);
+      } else if (source.includes('outlook')) {
+        result = await CalendarAPI.declineOutlookEvent(eventId);
+      } else {
+        alert('Cannot decline this event (unsupported source)');
+        return;
+      }
+
+      if (result.success) {
+        // Refresh events to show updated status
+        await this.syncCalendarEvents();
+        await this.loadEvents();
+        this.renderEvents();
+      } else {
+        alert('Failed to decline meeting: ' + result.error);
+      }
+    } catch (error) {
+      console.error('PingMeet: Error declining meeting', error);
+      alert('Error declining meeting: ' + error.message);
+    }
+  }
+
+  /**
    * Sync calendar events from connected APIs
    */
   async syncCalendarEvents() {
@@ -415,6 +458,29 @@ class PopupUI {
       outlookConnectBtn.classList.remove('hidden');
       outlookConnectBtn.textContent = 'Connect';
       outlookDisconnectBtn.classList.add('hidden');
+    }
+
+    // Show API warning if neither Google nor Outlook API is connected
+    const apiWarning = document.getElementById('apiWarning');
+    if (apiWarning) {
+      if (!status.google && !status.outlook) {
+        apiWarning.classList.remove('hidden');
+      } else {
+        apiWarning.classList.add('hidden');
+      }
+    }
+
+    // Update status text to show sync method and frequency
+    const statusText = document.getElementById('statusText');
+    if (statusText) {
+      if (status.google || status.outlook) {
+        const connectedServices = [];
+        if (status.google) connectedServices.push('Google');
+        if (status.outlook) connectedServices.push('Outlook');
+        statusText.textContent = `API Connected (${connectedServices.join(' & ')}) • Syncing every 2 min`;
+      } else {
+        statusText.textContent = 'Monitoring calendar tabs...';
+      }
     }
   }
 
@@ -536,8 +602,22 @@ class PopupUI {
       ? `<span class="conflict-warning" title="Overlaps with ${event.conflictCount} other meeting${event.conflictCount > 1 ? 's' : ''}">!</span>`
       : '';
 
-    const meetingLinkHtml = event.meetingLink
+    // Check user's response status
+    const userAttendee = event.attendees?.find(a => a.self);
+    const userStatus = userAttendee?.responseStatus || 'needsAction';
+    const isDeclined = userStatus === 'declined';
+
+    // Action buttons
+    const meetingLinkHtml = event.meetingLink && !isDeclined
       ? `<a href="${event.meetingLink}" class="event-link" target="_blank" title="Join meeting"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 10l4-4M7 4h5v5M4 7v5h5"/></svg></a>`
+      : '';
+
+    const declineButtonHtml = !isDeclined && (event.source?.includes('google') || event.source?.includes('outlook'))
+      ? `<button class="event-decline-btn" data-event-id="${event.id}" data-source="${event.source}" title="Decline meeting"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 4L4 12M4 4l8 8"/></svg></button>`
+      : '';
+
+    const actionsHtml = (meetingLinkHtml || declineButtonHtml)
+      ? `<div class="event-actions">${meetingLinkHtml}${declineButtonHtml}</div>`
       : '';
 
     // Attendees preview
@@ -552,20 +632,26 @@ class PopupUI {
     const sourceBadge = sourceType ?
       `<span class="event-source-badge ${sourceType}">${sourceType}</span>` : '';
 
+    // Declined badge
+    const declinedBadge = isDeclined
+      ? `<span class="event-declined-badge">Declined</span>`
+      : '';
+
     return `
-      <div class="event-item ${event.hasConflict ? 'has-conflict' : ''}" data-event-id="${event.id}">
+      <div class="event-item ${event.hasConflict ? 'has-conflict' : ''} ${isDeclined ? 'declined' : ''}" data-event-id="${event.id}">
         <div class="event-time">${timeStr}</div>
         <div class="event-details">
           <div class="event-title">
             ${conflictWarning}
-            <span class="event-title-text">${this.escapeHtml(event.title)}</span>
+            <span class="event-title-text">${this.escapeHtml(event.title || 'Untitled Meeting')}</span>
             ${sourceBadge}
+            ${declinedBadge}
           </div>
           <div class="event-countdown">${countdownStr}</div>
           ${attendeesHtml}
           ${detailsHtml}
         </div>
-        ${meetingLinkHtml}
+        ${actionsHtml}
       </div>
     `;
   }

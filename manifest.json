@@ -58,7 +58,7 @@
     "48": "assets/icons/icon-48.png",
     "128": "assets/icons/icon-128.png"
   },
-  
+
   "web_accessible_resources": [{
     "resources": ["assets/sounds/*", "src/reminder/*", "src/content/injected-script.js"],
     "matches": ["https://calendar.google.com/*", "https://outlook.office.com/*", "https://outlook.live.com/*"]

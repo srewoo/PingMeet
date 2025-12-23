@@ -257,6 +257,47 @@ export class CalendarAPI {
   }
 
   /**
+   * Connect to Google Calendar using chrome.identity (simplified, no credentials needed)
+   * This uses the extension's built-in OAuth credentials from manifest.json
+   * Tokens are automatically managed by Chrome
+   */
+  static async connectGoogleSimple() {
+    try {
+      // Use chrome.identity.getAuthToken for simplified auth
+      const token = await new Promise((resolve, reject) => {
+        chrome.identity.getAuthToken({ interactive: true }, (token) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else if (!token) {
+            reject(new Error('No token received'));
+          } else {
+            resolve(token);
+          }
+        });
+      });
+
+      // Verify token by fetching user info
+      const userInfo = await this.fetchGoogleUserInfo(token);
+
+      // Store connection status (no refresh token needed - Chrome manages it)
+      await this.saveConnection('google', {
+        connected: true,
+        email: userInfo.email,
+        accessToken: token,
+        authMode: 'simple',  // Mark as simple auth mode
+        expiresAt: Date.now() + (3600 * 1000),  // Chrome tokens typically last 1 hour
+        connectedAt: new Date().toISOString()
+      });
+
+      console.log('PingMeet: Connected to Google Calendar (Simple Mode)', userInfo.email);
+      return { success: true, email: userInfo.email };
+    } catch (error) {
+      console.error('PingMeet: Google Calendar simple connection failed', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
    * Refresh Google access token using refresh token
    * @param {string} refreshToken - The refresh token
    * @param {string} clientId - The client ID
@@ -570,15 +611,16 @@ export class CalendarAPI {
         return { success: false, error: 'Not authenticated', events: [] };
       }
 
+      // Fetch all events for the entire day (not just next 24 hours)
       const now = new Date();
-      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
       const params = new URLSearchParams({
-        startDateTime: now.toISOString(),
-        endDateTime: tomorrow.toISOString(),
+        startDateTime: startOfDay.toISOString(),
+        endDateTime: endOfDay.toISOString(),
         $orderby: 'start/dateTime',
-        $top: '50',
-        $select: 'id,subject,start,end,location,bodyPreview,organizer,attendees,onlineMeeting,webLink,isOnlineMeeting,onlineMeetingUrl'
+        $top: '100'
       });
 
       const response = await fetch(
@@ -595,6 +637,9 @@ export class CalendarAPI {
           this.notifyTokenExpired('Outlook Calendar');
           return { success: false, error: 'Token expired. Please reconnect in Settings.', events: [] };
         }
+        // Get error details
+        const errorText = await response.text();
+        console.error('PingMeet: Outlook API error response:', errorText);
         throw new Error(`API error: ${response.status}`);
       }
 
@@ -656,8 +701,11 @@ export class CalendarAPI {
     const linkPatterns = [
       /https:\/\/teams\.microsoft\.com\/l\/meetup-join\/[^\s"<]+/i,
       /https:\/\/meet\.google\.com\/[a-z-]+/i,
-      /https:\/\/[\w-]+\.zoom\.us\/j\/\d+/i,
-      /https:\/\/[\w-]+\.webex\.com\/[\w-]+\/j\.php\?[^\s"<]+/i
+      /https:\/\/[\w-]+\.zoom\.us\/j\/\d+[^\s"<]*/i,
+      /https:\/\/[\w-]+\.webex\.com\/[^\s"<]+/i,
+      /https:\/\/[\w-]+\.my\.webex\.com\/[^\s"<]+/i,
+      /https:\/\/meetings\.ringcentral\.com\/[^\s"<]+/i,
+      /https:\/\/v\.ringcentral\.com\/[^\s"<]+/i
     ];
 
     for (const pattern of linkPatterns) {
@@ -683,7 +731,7 @@ export class CalendarAPI {
   }
 
   /**
-   * Get valid access token (auto-refresh if expired using refresh token)
+   * Get valid access token (auto-refresh if expired using refresh token or chrome.identity)
    */
   static async getValidToken() {
     const connection = await chrome.storage.local.get(this.STORAGE_KEY);
@@ -697,8 +745,47 @@ export class CalendarAPI {
     if (googleConnection.expiresAt && Date.now() > googleConnection.expiresAt - 300000) {
       console.log('PingMeet: Google token expired, attempting auto-refresh...');
 
-      // Try to refresh using refresh token
-      if (googleConnection.refreshToken) {
+      // Simple mode: Use chrome.identity to refresh
+      if (googleConnection.authMode === 'simple') {
+        try {
+          // Remove cached token first
+          await new Promise((resolve) => {
+            chrome.identity.removeCachedAuthToken({ token: googleConnection.accessToken }, () => {
+              resolve();
+            });
+          });
+
+          // Get fresh token
+          const newToken = await new Promise((resolve, reject) => {
+            chrome.identity.getAuthToken({ interactive: false }, (token) => {
+              if (chrome.runtime.lastError) {
+                reject(new Error(chrome.runtime.lastError.message));
+              } else if (!token) {
+                reject(new Error('No token received'));
+              } else {
+                resolve(token);
+              }
+            });
+          });
+
+          // Update stored token
+          await this.saveConnection('google', {
+            ...googleConnection,
+            accessToken: newToken,
+            expiresAt: Date.now() + (3600 * 1000)
+          });
+
+          console.log('PingMeet: Google token refreshed successfully (Simple Mode)');
+          return newToken;
+        } catch (error) {
+          console.error('PingMeet: Simple mode token refresh failed', error);
+          await this.saveConnection('google', { connected: false });
+          this.notifyTokenExpired('Google Calendar');
+          return null;
+        }
+      }
+      // Advanced mode: Try to refresh using refresh token
+      else if (googleConnection.refreshToken) {
         try {
           const credentials = await this.getCredentials('google');
           if (!credentials?.clientId) {
@@ -719,7 +806,7 @@ export class CalendarAPI {
             expiresAt: expiresAt
           });
 
-          console.log('PingMeet: Google token refreshed successfully');
+          console.log('PingMeet: Google token refreshed successfully (Advanced Mode)');
           return tokens.access_token;
         } catch (error) {
           console.error('PingMeet: Token refresh failed', error);
@@ -757,7 +844,7 @@ export class CalendarAPI {
 
   /**
    * Fetch calendar events from Google Calendar API
-   * Returns events for the next 24 hours
+   * Returns all events for the entire day
    */
   static async fetchGoogleEvents() {
     try {
@@ -767,15 +854,17 @@ export class CalendarAPI {
         return { success: false, error: 'Not authenticated', events: [] };
       }
 
+      // Fetch all events for the entire day (not just next 24 hours)
       const now = new Date();
-      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
       const params = new URLSearchParams({
-        timeMin: now.toISOString(),
-        timeMax: tomorrow.toISOString(),
+        timeMin: startOfDay.toISOString(),
+        timeMax: endOfDay.toISOString(),
         singleEvents: 'true',
         orderBy: 'startTime',
-        maxResults: '50'
+        maxResults: '100'
       });
 
       const response = await fetch(
@@ -859,9 +948,12 @@ export class CalendarAPI {
 
     const linkPatterns = [
       /https:\/\/meet\.google\.com\/[a-z-]+/i,
-      /https:\/\/[\w-]+\.zoom\.us\/j\/\d+/i,
+      /https:\/\/[\w-]+\.zoom\.us\/j\/\d+[^\s"<]*/i,
       /https:\/\/teams\.microsoft\.com\/l\/meetup-join\/[^\s"<]+/i,
-      /https:\/\/[\w-]+\.webex\.com\/[\w-]+\/j\.php\?[^\s"<]+/i
+      /https:\/\/[\w-]+\.webex\.com\/[^\s"<]+/i,
+      /https:\/\/[\w-]+\.my\.webex\.com\/[^\s"<]+/i,
+      /https:\/\/meetings\.ringcentral\.com\/[^\s"<]+/i,
+      /https:\/\/v\.ringcentral\.com\/[^\s"<]+/i
     ];
 
     for (const pattern of linkPatterns) {
@@ -1054,6 +1146,116 @@ export class CalendarAPI {
       };
     } catch (error) {
       console.error('PingMeet: Error creating Outlook event', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Decline a Google Calendar event
+   */
+  static async declineGoogleEvent(eventId) {
+    try {
+      const token = await this.getValidToken();
+      if (!token) {
+        return { success: false, error: 'Not authenticated' };
+      }
+
+      // Remove prefix if present (e.g., "outlook_abc123" -> "abc123")
+      const cleanEventId = eventId.replace(/^(google_|outlook_)/, '');
+
+      // First, fetch the event to get current attendees
+      const getResponse = await fetch(
+        `${this.GOOGLE_CALENDAR_API}/calendars/primary/events/${cleanEventId}`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
+      );
+
+      if (!getResponse.ok) {
+        const error = await getResponse.json();
+        return { success: false, error: error.error?.message || 'Failed to fetch event' };
+      }
+
+      const event = await getResponse.json();
+
+      // Find the current user's attendee entry and update their response
+      let attendees = event.attendees || [];
+      const userAttendee = attendees.find(a => a.self);
+
+      if (userAttendee) {
+        userAttendee.responseStatus = 'declined';
+      } else {
+        // If not found in attendees (unlikely), add as declined
+        attendees.push({
+          email: event.organizer?.email || '',
+          responseStatus: 'declined',
+          self: true
+        });
+      }
+
+      // Update the event with the modified attendees list
+      const patchResponse = await fetch(
+        `${this.GOOGLE_CALENDAR_API}/calendars/primary/events/${cleanEventId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ attendees })
+        }
+      );
+
+      if (!patchResponse.ok) {
+        const error = await patchResponse.json();
+        return { success: false, error: error.error?.message || 'Failed to decline event' };
+      }
+
+      console.log('PingMeet: Declined Google Calendar event', cleanEventId);
+      return { success: true };
+    } catch (error) {
+      console.error('PingMeet: Error declining Google event', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Decline an Outlook Calendar event
+   */
+  static async declineOutlookEvent(eventId) {
+    try {
+      const token = await this.getValidOutlookToken();
+      if (!token) {
+        return { success: false, error: 'Not authenticated' };
+      }
+
+      // Remove prefix if present
+      const cleanEventId = eventId.replace(/^(google_|outlook_)/, '');
+
+      const response = await fetch(
+        `${this.MS_GRAPH_API}/me/events/${cleanEventId}/decline`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            comment: 'Declined via PingMeet',
+            sendResponse: true
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        return { success: false, error: error.error?.message || 'Failed to decline event' };
+      }
+
+      console.log('PingMeet: Declined Outlook event', cleanEventId);
+      return { success: true };
+    } catch (error) {
+      console.error('PingMeet: Error declining Outlook event', error);
       return { success: false, error: error.message };
     }
   }

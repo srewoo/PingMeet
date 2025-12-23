@@ -63,8 +63,8 @@ class PingMeetService {
     // Initialize daily summary
     await DailySummary.init();
 
-    // Set up periodic calendar API sync (every 5 minutes)
-    chrome.alarms.create('CALENDAR_API_SYNC', { periodInMinutes: 5 });
+    // Set up periodic calendar API sync (every 2 minutes for better reliability)
+    chrome.alarms.create('CALENDAR_API_SYNC', { periodInMinutes: 2 });
 
     // Initial API sync if connected (with deduplication after)
     await this.syncFromCalendarAPI();
@@ -346,6 +346,13 @@ class PingMeetService {
       return;
     }
 
+    // Skip notifications for declined meetings
+    const userAttendee = event.attendees?.find(a => a.self);
+    if (userAttendee?.responseStatus === 'declined') {
+      console.log(`PingMeet: Skipping reminder for declined meeting: ${event.title || 'Untitled'}`);
+      return;
+    }
+
     // Use normalized alarm key based on title + rounded start time
     // This prevents duplicate alarms for the same meeting from different sources
     const startTime = new Date(event.startTime);
@@ -371,8 +378,9 @@ class PingMeetService {
         when: reminderTime.getTime(),
       });
 
-      // Store event data for when alarm fires
-      await StorageManager.saveEvent(event.id, event);
+      // Store event data using the ALARM NAME as key (not event.id)
+      // This ensures we can retrieve it when the alarm fires
+      await StorageManager.saveEvent(alarmName, event);
 
       console.log(
         `PingMeet: Scheduled reminder for "${event.title}" at ${reminderTime.toLocaleString()}`
@@ -410,22 +418,16 @@ class PingMeetService {
     // Handle meeting reminder alarms
     if (!alarm.name.startsWith(ALARM_NAMES.MEETING_PREFIX)) return;
 
-    const eventId = alarm.name.replace(ALARM_NAMES.MEETING_PREFIX, '');
-    const isSnoozeAlarm = eventId.endsWith('_snooze');
-    const actualEventId = isSnoozeAlarm ? eventId.replace('_snooze', '') : eventId;
-    const event = await StorageManager.getEvent(eventId);
+    // Use the full alarm name as the storage key
+    const event = await StorageManager.getEvent(alarm.name);
 
     if (event) {
+      const isSnoozeAlarm = alarm.name.includes('_snooze');
       console.log(`PingMeet: Alarm fired for "${event.title}"${isSnoozeAlarm ? ' (snoozed)' : ''}`);
       await NotificationManager.triggerAttention(event);
 
-      // Cleanup stored event data
-      await StorageManager.removeEvent(eventId);
-
-      // Also cleanup snooze-specific data if it was a snooze alarm
-      if (isSnoozeAlarm) {
-        await StorageManager.removeEvent(actualEventId + '_snooze');
-      }
+      // Cleanup stored event data using alarm name
+      await StorageManager.removeEvent(alarm.name);
     } else {
       console.warn(`PingMeet: No event found for alarm ${alarm.name}`);
     }
@@ -467,7 +469,8 @@ class PingMeetService {
       when: snoozeTime,
     });
 
-    await StorageManager.saveEvent(`${event.id}_snooze`, event);
+    // Use the full alarm name as storage key (consistent with scheduleReminder)
+    await StorageManager.saveEvent(alarmName, event);
 
     console.log(`PingMeet: Snoozed "${event.title}" for ${minutes} minute(s)`);
   }

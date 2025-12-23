@@ -21,6 +21,19 @@
         </button>
       </header>
 
+      <!-- API Connection Warning Banner -->
+      <div class="api-warning hidden" id="apiWarning">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <div class="api-warning-content">
+          <div class="api-warning-title">Using calendar tab detection</div>
+          <div class="api-warning-text">For reliable reminders, connect your calendar API in Settings</div>
+        </div>
+      </div>
+
       <main class="main" id="mainView">
         <div class="status" id="status">
           <div class="status-indicator" id="statusIndicator"></div>
@@ -188,7 +201,11 @@
 
               <!-- Expandable Setup Form -->
               <div class="connection-setup hidden" id="googleSetup">
+                <!-- Advanced Mode Setup (Now Default) -->
                 <div class="setup-instructions">
+                  <div style="background: #e7f3ff; padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 12px;">
+                    <strong>✨ Recommended:</strong> API connection provides reliable background syncing (every 2 min) without needing calendar tabs open.
+                  </div>
                   <p><strong>Enter your Google OAuth Client ID to connect:</strong></p>
                   <ol style="font-size: 13px; line-height: 1.6;">
                     <li>Go to <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a></li>
@@ -239,6 +256,9 @@
               <!-- Expandable Setup Form -->
               <div class="connection-setup hidden" id="outlookSetup">
                 <div class="setup-instructions">
+                  <div style="background: #e7f3ff; padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 12px;">
+                    <strong>✨ Recommended:</strong> API connection provides reliable background syncing (every 2 min) without needing calendar tabs open.
+                  </div>
                   <p><strong>Enter your Microsoft Azure App credentials:</strong></p>
                   <ol style="font-size: 13px; line-height: 1.6;">
                     <li>Go to <a href="https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps" target="_blank">Azure Portal → Azure Active Directory → App registrations</a></li>
