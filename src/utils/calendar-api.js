@@ -303,28 +303,61 @@ export class CalendarAPI {
   }
 
   /**
-   * Refresh Google access token using refresh token
+   * Refresh Google access token using refresh token with retry logic
    * @param {string} refreshToken - The refresh token
    * @param {string} clientId - The client ID
+   * @param {string} clientSecret - The client secret (required for web app OAuth)
+   * @param {number} retries - Number of retries (default 3)
    * @returns {Promise<Object>} New tokens
    */
-  static async refreshGoogleToken(refreshToken, clientId) {
-    const response = await fetch(this.GOOGLE_TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token'
-      })
-    });
+  static async refreshGoogleToken(refreshToken, clientId, clientSecret, retries = 3) {
+    let lastError;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        console.log(`PingMeet: Google token refresh attempt ${attempt}/${retries}`);
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error_description || 'Token refresh failed');
+        const params = {
+          client_id: clientId,
+          refresh_token: refreshToken,
+          grant_type: 'refresh_token'
+        };
+
+        // Include client_secret if provided (required for Web Application OAuth clients)
+        if (clientSecret) {
+          params.client_secret = clientSecret;
+        }
+
+        const response = await fetch(this.GOOGLE_TOKEN_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams(params)
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error_description || `Token refresh failed: ${response.status}`);
+        }
+
+        return response.json();
+      } catch (error) {
+        lastError = error;
+        console.warn(`PingMeet: Google token refresh attempt ${attempt} failed:`, error.message);
+
+        // Don't retry on auth errors (invalid_grant, etc.)
+        if (error.message.includes('invalid_grant') || 
+            error.message.includes('expired') ||
+            error.message.includes('revoked')) {
+          throw error;
+        }
+
+        // Wait before retry (exponential backoff)
+        if (attempt < retries) {
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 500));
+        }
+      }
     }
 
-    return response.json();
+    throw lastError;
   }
 
   /**
@@ -612,37 +645,63 @@ export class CalendarAPI {
   }
 
   /**
-   * Refresh Outlook access token using refresh token
+   * Refresh Outlook access token using refresh token with retry logic
    * @param {string} refreshToken - The refresh token
    * @param {string} clientId - The client ID
+   * @param {number} retries - Number of retries (default 3)
    * @returns {Promise<Object>} New tokens
    */
-  static async refreshOutlookToken(refreshToken, clientId) {
+  static async refreshOutlookToken(refreshToken, clientId, retries = 3) {
     const scopes = [
       'openid',
       'profile',
       'email',
       'offline_access',
+      'User.Read',
       'Calendars.ReadWrite'
     ].join(' ');
 
-    const response = await fetch(this.MS_TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token',
-        scope: scopes
-      })
-    });
+    let lastError;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        console.log(`PingMeet: Outlook token refresh attempt ${attempt}/${retries}`);
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error_description || 'Token refresh failed');
+        const response = await fetch(this.MS_TOKEN_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: clientId,
+            refresh_token: refreshToken,
+            grant_type: 'refresh_token',
+            scope: scopes
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error_description || `Token refresh failed: ${response.status}`);
+        }
+
+        return response.json();
+      } catch (error) {
+        lastError = error;
+        console.warn(`PingMeet: Outlook token refresh attempt ${attempt} failed:`, error.message);
+
+        // Don't retry on auth errors (invalid_grant, etc.)
+        if (error.message.includes('invalid_grant') || 
+            error.message.includes('expired') ||
+            error.message.includes('revoked')) {
+          throw error;
+        }
+
+        // Wait before retry (exponential backoff)
+        if (attempt < retries) {
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 500));
+        }
+      }
     }
 
-    return response.json();
+    throw lastError;
   }
 
   /**
@@ -879,44 +938,66 @@ export class CalendarAPI {
     if (googleConnection.expiresAt && Date.now() > googleConnection.expiresAt - 300000) {
       console.log('PingMeet: Google token expired, attempting auto-refresh...');
 
-      // Simple mode: Use chrome.identity to refresh
+      // Simple mode: Use chrome.identity to refresh with retry
       if (googleConnection.authMode === 'simple') {
-        try {
-          // Remove cached token first
-          await new Promise((resolve) => {
-            chrome.identity.removeCachedAuthToken({ token: googleConnection.accessToken }, () => {
-              resolve();
+        const maxRetries = 3;
+        let lastError;
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            console.log(`PingMeet: Simple mode token refresh attempt ${attempt}/${maxRetries}`);
+
+            // Remove cached token first
+            await new Promise((resolve) => {
+              chrome.identity.removeCachedAuthToken({ token: googleConnection.accessToken }, () => {
+                resolve();
+              });
             });
-          });
 
-          // Get fresh token
-          const newToken = await new Promise((resolve, reject) => {
-            chrome.identity.getAuthToken({ interactive: false }, (token) => {
-              if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message));
-              } else if (!token) {
-                reject(new Error('No token received'));
-              } else {
-                resolve(token);
-              }
+            // Get fresh token
+            const newToken = await new Promise((resolve, reject) => {
+              chrome.identity.getAuthToken({ interactive: false }, (token) => {
+                if (chrome.runtime.lastError) {
+                  reject(new Error(chrome.runtime.lastError.message));
+                } else if (!token) {
+                  reject(new Error('No token received'));
+                } else {
+                  resolve(token);
+                }
+              });
             });
-          });
 
-          // Update stored token
-          await this.saveConnection('google', {
-            ...googleConnection,
-            accessToken: newToken,
-            expiresAt: Date.now() + (3600 * 1000)
-          });
+            // Update stored token
+            await this.saveConnection('google', {
+              ...googleConnection,
+              accessToken: newToken,
+              expiresAt: Date.now() + (3600 * 1000)
+            });
 
-          console.log('PingMeet: Google token refreshed successfully (Simple Mode)');
-          return newToken;
-        } catch (error) {
-          console.error('PingMeet: Simple mode token refresh failed', error);
-          await this.saveConnection('google', { connected: false });
-          this.notifyTokenExpired('Google Calendar');
-          return null;
+            console.log('PingMeet: Google token refreshed successfully (Simple Mode)');
+            return newToken;
+          } catch (error) {
+            lastError = error;
+            console.warn(`PingMeet: Simple mode token refresh attempt ${attempt} failed:`, error.message);
+
+            // Don't retry on certain errors
+            if (error.message.includes('user') || 
+                error.message.includes('denied') ||
+                error.message.includes('not signed in')) {
+              break;
+            }
+
+            // Wait before retry
+            if (attempt < maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 500));
+            }
+          }
         }
+
+        console.error('PingMeet: Simple mode token refresh failed after retries', lastError);
+        await this.saveConnection('google', { connected: false });
+        this.notifyTokenExpired('Google Calendar');
+        return null;
       }
       // Advanced mode: Try to refresh using refresh token
       else if (googleConnection.refreshToken) {
@@ -926,7 +1007,11 @@ export class CalendarAPI {
             throw new Error('No client ID found');
           }
 
-          const tokens = await this.refreshGoogleToken(googleConnection.refreshToken, credentials.clientId);
+          const tokens = await this.refreshGoogleToken(
+            googleConnection.refreshToken, 
+            credentials.clientId,
+            credentials.clientSecret  // Include client secret for Web Application OAuth
+          );
 
           // Calculate new expiry time
           const expiresAt = Date.now() + (parseInt(tokens.expires_in) * 1000);

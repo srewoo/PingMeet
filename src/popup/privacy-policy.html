@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PingMeet - Privacy Policy</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8fafc;
+      color: #1a1a2e;
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      padding: 40px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #1a1a2e;
+    }
+
+    .last-updated {
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 32px;
+    }
+
+    h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-top: 28px;
+      margin-bottom: 12px;
+      color: #2563eb;
+    }
+
+    p {
+      margin-bottom: 16px;
+      color: #374151;
+    }
+
+    ul {
+      margin: 0 0 16px 24px;
+      color: #374151;
+    }
+
+    li {
+      margin-bottom: 8px;
+    }
+
+    .highlight {
+      background: #dbeafe;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 20px 0;
+      border-left: 4px solid #2563eb;
+    }
+
+    .highlight strong {
+      color: #1e40af;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+    }
+
+    .data-table th,
+    .data-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .data-table th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: #1a1a2e;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge.local {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .badge.optional {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .contact {
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    a {
+      color: #2563eb;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 24px;
+      font-size: 14px;
+      color: #6b7280;
+    }
+
+    .back-link:hover {
+      color: #2563eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="popup.html" class="back-link">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10 12L6 8l4-4"/>
+      </svg>
+      Back to PingMeet
+    </a>
+
+    <h1>Privacy Policy</h1>
+    <p class="last-updated">Last updated: December 2024</p>
+
+    <div class="highlight">
+      <strong>Your privacy matters.</strong> PingMeet is designed with privacy-first principles. All your data stays in your browser - we don't operate any servers that collect or store your information.
+    </div>
+
+    <h2>Data We Access</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Data Type</th>
+          <th>Purpose</th>
+          <th>Storage</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Calendar Events</td>
+          <td>Display meetings & send reminders</td>
+          <td><span class="badge local">Local Only</span></td>
+        </tr>
+        <tr>
+          <td>OAuth Tokens</td>
+          <td>Authenticate with Google/Microsoft</td>
+          <td><span class="badge local">Local Only</span></td>
+        </tr>
+        <tr>
+          <td>Email Address</td>
+          <td>Display connected account</td>
+          <td><span class="badge local">Local Only</span></td>
+        </tr>
+        <tr>
+          <td>Meeting Duration</td>
+          <td>Track time in meetings</td>
+          <td><span class="badge local">Local Only</span></td>
+        </tr>
+        <tr>
+          <td>AI API Keys</td>
+          <td>Generate meeting insights</td>
+          <td><span class="badge local">Local Only</span> <span class="badge optional">Optional</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Data Storage</h2>
+    <p>All data is stored locally in your browser using Chrome's Storage API. This includes:</p>
+    <ul>
+      <li>Your calendar connection settings</li>
+      <li>OAuth tokens for calendar access</li>
+      <li>Reminder preferences</li>
+      <li>Meeting duration statistics</li>
+      <li>AI provider configuration (if enabled)</li>
+    </ul>
+    <p><strong>We do not have servers that store your data.</strong> When you uninstall the extension, all data is automatically deleted.</p>
+
+    <h2>Third-Party Services</h2>
+    <p>PingMeet connects to the following services <strong>only when you explicitly connect your calendars</strong>:</p>
+    <ul>
+      <li><strong>Google Calendar API</strong> - To fetch your Google Calendar events</li>
+      <li><strong>Microsoft Graph API</strong> - To fetch your Outlook Calendar events</li>
+      <li><strong>AI Providers (Optional)</strong> - OpenAI, Anthropic, or Google AI for meeting insights. Only used if you configure an API key.</li>
+    </ul>
+
+    <h2>What We DON'T Do</h2>
+    <ul>
+      <li>We don't sell your data</li>
+      <li>We don't share your data with third parties (except AI providers if you opt-in)</li>
+      <li>We don't track your browsing activity</li>
+      <li>We don't show advertisements</li>
+      <li>We don't collect analytics or telemetry</li>
+    </ul>
+
+    <h2>AI Insights (Optional Feature)</h2>
+    <p>If you choose to enable AI-powered meeting insights:</p>
+    <ul>
+      <li>Your meeting titles and times may be sent to your chosen AI provider</li>
+      <li>You provide your own API key - we don't have access to it</li>
+      <li>This feature is completely optional and disabled by default</li>
+      <li>You can remove your API key at any time to disable this feature</li>
+    </ul>
+
+    <h2>Permissions Explained</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Permission</th>
+          <th>Why We Need It</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>identity</code></td>
+          <td>OAuth authentication with Google/Microsoft</td>
+        </tr>
+        <tr>
+          <td><code>notifications</code></td>
+          <td>Show meeting reminder notifications</td>
+        </tr>
+        <tr>
+          <td><code>alarms</code></td>
+          <td>Schedule reminders at the right time</td>
+        </tr>
+        <tr>
+          <td><code>storage</code></td>
+          <td>Save your settings and calendar data locally</td>
+        </tr>
+        <tr>
+          <td><code>tabs</code></td>
+          <td>Open meeting links when you click "Join"</td>
+        </tr>
+        <tr>
+          <td><code>offscreen</code></td>
+          <td>Play reminder sound in background</td>
+        </tr>
+        <tr>
+          <td><code>downloads</code></td>
+          <td>Export weekly meeting reports</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Your Rights</h2>
+    <p>You have full control over your data:</p>
+    <ul>
+      <li><strong>Access:</strong> All your data is visible in the extension</li>
+      <li><strong>Delete:</strong> Disconnect calendars or uninstall to remove all data</li>
+      <li><strong>Portability:</strong> Export your meeting reports anytime</li>
+    </ul>
+
+    <h2>Changes to This Policy</h2>
+    <p>We may update this privacy policy from time to time. Any changes will be reflected in the "Last updated" date above.</p>
+
+    <div class="contact">
+      <h2>Contact</h2>
+      <p>If you have questions about this privacy policy or how PingMeet handles your data, please open an issue on our GitHub repository or contact us at:</p>
+      <p><a href="mailto:privacy@pingmeet.app">privacy@pingmeet.app</a></p>
+    </div>
+  </div>
+</body>
+</html>

@@ -25,7 +25,12 @@
   "host_permissions": [
     "https://calendar.google.com/*",
     "https://outlook.office.com/*",
-    "https://outlook.live.com/*"
+    "https://outlook.live.com/*",
+    "https://www.googleapis.com/*",
+    "https://oauth2.googleapis.com/*",
+    "https://accounts.google.com/*",
+    "https://graph.microsoft.com/*",
+    "https://login.microsoftonline.com/*"
   ],
   
   "background": {
