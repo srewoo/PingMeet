@@ -70,6 +70,16 @@ class OutlookReader {
     // Start health check
     this.startHealthCheck();
 
+    // Listen for sync trigger from background service worker
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message.type === 'TRIGGER_DOM_SYNC') {
+        console.log('PingMeet: Received DOM sync trigger from background');
+        this.readEvents();
+        sendResponse({ success: true });
+      }
+      return true;
+    });
+
     // Inject script into page's main world for fetch interception
     this.injectPageScript();
 

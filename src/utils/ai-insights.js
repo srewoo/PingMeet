@@ -273,39 +273,126 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
     cleanedContent = cleanedContent.replace(/\n?```+\s*$/gm, '');
     cleanedContent = cleanedContent.trim();
 
+    // Try to extract JSON array from content (in case there's extra text before/after)
+    const jsonArrayMatch = cleanedContent.match(/\[[\s\S]*\]/);
+    if (jsonArrayMatch) {
+      cleanedContent = jsonArrayMatch[0];
+    }
+
     console.log('PingMeet: Cleaned content:', cleanedContent.substring(0, 100) + '...');
 
-    try {
-      const parsed = JSON.parse(cleanedContent);
+    // Try parsing with progressively more aggressive fixes
+    const parseAttempts = [
+      // Attempt 1: Parse as-is
+      () => JSON.parse(cleanedContent),
 
-      // Ensure it's an array
-      if (Array.isArray(parsed)) {
-        console.log('PingMeet: Successfully parsed array with', parsed.length, 'insights');
-        return parsed;
-      } else if (typeof parsed === 'object' && parsed !== null) {
-        // If it's a single object, wrap it in an array
-        console.log('PingMeet: Wrapped single object into array');
-        return [parsed];
-      } else {
-        throw new Error('Invalid format - not an object or array');
+      // Attempt 2: Fix trailing commas before ] or }
+      () => JSON.parse(cleanedContent.replace(/,\s*([\]}])/g, '$1')),
+
+      // Attempt 3: Fix unescaped quotes in text values
+      () => {
+        // Replace problematic characters in text values
+        let fixed = cleanedContent;
+        // Fix smart quotes
+        fixed = fixed.replace(/[\u201C\u201D]/g, '\\"');
+        fixed = fixed.replace(/[\u2018\u2019]/g, "'");
+        // Fix trailing commas
+        fixed = fixed.replace(/,\s*([\]}])/g, '$1');
+        return JSON.parse(fixed);
+      },
+
+      // Attempt 4: Extract individual objects and reconstruct array
+      () => {
+        const objects = [];
+        // Match individual insight objects
+        const objectPattern = /\{\s*"type"\s*:\s*"([^"]+)"\s*,\s*"text"\s*:\s*"([^"]*(?:\\.[^"]*)*)"\s*\}/g;
+        let match;
+        while ((match = objectPattern.exec(cleanedContent)) !== null) {
+          objects.push({ type: match[1], text: match[2].replace(/\\"/g, '"') });
+        }
+        if (objects.length > 0) return objects;
+        throw new Error('No objects found');
+      },
+
+      // Attempt 5: More lenient object extraction (handles unescaped quotes in text)
+      () => {
+        const objects = [];
+        // Split by }, and process each
+        const parts = cleanedContent.split(/\}\s*,?\s*(?=\{|\])/);
+        for (const part of parts) {
+          const typeMatch = part.match(/"type"\s*:\s*"(warning|suggestion|info)"/);
+          const textMatch = part.match(/"text"\s*:\s*"([\s\S]*?)(?:"\s*\}?$|(?=",?\s*"type"))/);
+          if (typeMatch && textMatch) {
+            objects.push({
+              type: typeMatch[1],
+              text: textMatch[1].replace(/\\n/g, ' ').replace(/\s+/g, ' ').trim()
+            });
+          }
+        }
+        if (objects.length > 0) return objects;
+        throw new Error('No objects found with lenient parsing');
       }
-    } catch (error) {
-      console.error('PingMeet: Failed to parse AI response as JSON:', error);
-      console.log('PingMeet: Raw content that failed:', cleanedContent);
+    ];
 
-      // Try to extract meaningful insights from text
-      const lines = content.split('\n').filter(line => line.trim());
-      if (lines.length > 0) {
-        // Create insights from each non-empty line
-        console.log('PingMeet: Using text fallback with', lines.length, 'lines');
-        return lines.slice(0, 5).map(line => ({
-          type: 'info',
-          text: line.replace(/^[-•*]\s*/, '').trim() // Remove bullet points
-        }));
+    for (let i = 0; i < parseAttempts.length; i++) {
+      try {
+        const parsed = parseAttempts[i]();
+
+        // Ensure it's an array
+        if (Array.isArray(parsed)) {
+          console.log(`PingMeet: Successfully parsed array with ${parsed.length} insights (attempt ${i + 1})`);
+          // Validate and clean each insight
+          return parsed.filter(item => item && typeof item === 'object')
+            .map(item => ({
+              type: ['warning', 'suggestion', 'info'].includes(item.type) ? item.type : 'info',
+              text: String(item.text || '').trim()
+            }))
+            .filter(item => item.text.length > 0);
+        } else if (typeof parsed === 'object' && parsed !== null) {
+          // If it's a single object or has insights key, handle it
+          if (parsed.insights && Array.isArray(parsed.insights)) {
+            console.log(`PingMeet: Extracted insights array from object (attempt ${i + 1})`);
+            return parsed.insights;
+          }
+          console.log(`PingMeet: Wrapped single object into array (attempt ${i + 1})`);
+          return [parsed];
+        }
+      } catch (e) {
+        console.log(`PingMeet: Parse attempt ${i + 1} failed:`, e.message);
       }
-
-      return [{ type: 'info', text: 'Unable to parse insights from AI response' }];
     }
+
+    console.error('PingMeet: All JSON parse attempts failed');
+    console.log('PingMeet: Raw content that failed:', cleanedContent);
+
+    // Final fallback: Try to extract meaningful insights from text
+    const lines = content.split('\n').filter(line => {
+      const trimmed = line.trim();
+      // Skip empty lines and lines that look like JSON syntax
+      return trimmed && !trimmed.match(/^[\[\]{},]*$/) && trimmed.length > 10;
+    });
+
+    if (lines.length > 0) {
+      console.log('PingMeet: Using text fallback with', lines.length, 'lines');
+      return lines.slice(0, 5).map(line => {
+        let text = line
+          .replace(/^[-•*]\s*/, '') // Remove bullet points
+          .replace(/^["'{}\[\]]+/, '') // Remove leading JSON chars
+          .replace(/["'{}\[\]]+$/, '') // Remove trailing JSON chars
+          .replace(/^(type|text)\s*:\s*/i, '') // Remove field names
+          .replace(/^(warning|suggestion|info)\s*[,:]?\s*/i, '') // Remove type values
+          .trim();
+
+        // Determine type from content
+        let type = 'info';
+        if (/warning|concern|careful|attention|alert/i.test(line)) type = 'warning';
+        else if (/suggest|recommend|consider|try|could/i.test(line)) type = 'suggestion';
+
+        return { type, text };
+      }).filter(item => item.text.length > 5);
+    }
+
+    return [{ type: 'info', text: 'Unable to parse insights from AI response' }];
   }
 
   /**

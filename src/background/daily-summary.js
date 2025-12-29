@@ -4,6 +4,7 @@
  */
 
 import { StorageManager } from '../utils/storage.js';
+import { NotificationManager } from './notification-manager.js';
 
 export class DailySummary {
   /**
@@ -50,46 +51,129 @@ export class DailySummary {
 
       const events = await StorageManager.getEvents();
       const now = new Date();
+
+      // Get start and end of today
+      const startOfDay = new Date(now);
+      startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(now);
       endOfDay.setHours(23, 59, 59, 999);
 
-      // Filter for today's events
+      // Filter for today's events (all events today, not just future ones)
       const todaysEvents = events.filter(event => {
         const startTime = new Date(event.startTime);
-        return startTime >= now && startTime <= endOfDay;
+        return startTime >= startOfDay && startTime <= endOfDay;
       });
-
-      if (todaysEvents.length === 0) {
-        // No meetings today
-        await chrome.notifications.create('daily_summary', {
-          type: 'basic',
-          iconUrl: chrome.runtime.getURL('assets/icons/icon-128.png'),
-          title: '📅 Your Day Ahead',
-          message: 'No meetings scheduled for today. Enjoy your focus time!',
-          priority: 1,
-        });
-        return;
-      }
 
       // Sort by start time
       todaysEvents.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
 
-      // Create summary message
-      const summary = this.formatSummaryMessage(todaysEvents);
+      // Play sound alert
+      await NotificationManager.playSound();
 
-      // Send notification
-      await chrome.notifications.create('daily_summary', {
-        type: 'basic',
-        iconUrl: chrome.runtime.getURL('assets/icons/icon-128.png'),
-        title: `📅 Today: ${todaysEvents.length} Meeting${todaysEvents.length > 1 ? 's' : ''}`,
-        message: summary,
-        priority: 1,
-        requireInteraction: false,
-      });
+      // Show popup window with daily summary
+      await this.showDailySummaryPopup(todaysEvents);
+
+      // Also send OS notification as a secondary alert
+      await this.sendOSNotification(todaysEvents);
 
       console.log(`PingMeet: Daily summary sent for ${todaysEvents.length} meetings`);
     } catch (error) {
       console.error('PingMeet: Error sending daily summary', error);
+    }
+  }
+
+  /**
+   * Show daily summary popup window
+   * @param {Array} events - Today's events
+   */
+  static async showDailySummaryPopup(events) {
+    try {
+      // Sanitize events data for URL encoding
+      const sanitizedEvents = events.map(event => ({
+        id: event.id,
+        title: event.title,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        meetingLink: event.meetingLink,
+        htmlLink: event.htmlLink,
+        attendees: (event.attendees || []).map(a => ({
+          name: a.name,
+          email: a.email
+        })),
+        hasConflict: event.hasConflict
+      }));
+
+      const eventsData = encodeURIComponent(JSON.stringify(sanitizedEvents));
+
+      // Calculate optimal window position
+      const windowConfig = await this.calculateOptimalWindowPosition();
+
+      await chrome.windows.create({
+        url: chrome.runtime.getURL(`src/daily-summary/daily-summary.html?events=${eventsData}`),
+        type: 'popup',
+        width: 480,
+        height: 600,
+        focused: true,
+        top: windowConfig.top,
+        left: windowConfig.left,
+      });
+
+      console.log('PingMeet: Daily summary popup opened');
+    } catch (error) {
+      console.error('PingMeet: Error creating daily summary popup', error);
+    }
+  }
+
+  /**
+   * Calculate optimal window position
+   */
+  static async calculateOptimalWindowPosition() {
+    try {
+      const currentWindow = await chrome.windows.getCurrent();
+
+      if (currentWindow && currentWindow.top !== undefined && currentWindow.left !== undefined) {
+        const windowWidth = 480;
+        const windowHeight = 600;
+
+        const left = currentWindow.left + Math.floor((currentWindow.width - windowWidth) / 2);
+        const top = currentWindow.top + Math.floor((currentWindow.height - windowHeight) / 3);
+
+        return {
+          top: Math.max(50, top),
+          left: Math.max(50, left),
+        };
+      }
+    } catch (error) {
+      console.warn('PingMeet: Could not determine optimal window position', error);
+    }
+
+    return { top: 100, left: 100 };
+  }
+
+  /**
+   * Send OS notification as secondary alert
+   * @param {Array} events - Today's events
+   */
+  static async sendOSNotification(events) {
+    if (events.length === 0) {
+      await chrome.notifications.create('daily_summary', {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('assets/icons/icon-128.png'),
+        title: '📅 Your Day Ahead',
+        message: 'No meetings scheduled for today. Enjoy your focus time!',
+        priority: 1,
+      });
+    } else {
+      const summary = this.formatSummaryMessage(events);
+
+      await chrome.notifications.create('daily_summary', {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('assets/icons/icon-128.png'),
+        title: `📅 Today: ${events.length} Meeting${events.length > 1 ? 's' : ''}`,
+        message: summary,
+        priority: 1,
+        requireInteraction: false,
+      });
     }
   }
 

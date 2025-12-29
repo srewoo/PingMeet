@@ -24,6 +24,10 @@ describe('DailySummary', () => {
       notifications: {
         create: jest.fn((id, options) => Promise.resolve(id)),
       },
+      windows: {
+        create: jest.fn(() => Promise.resolve({ id: 123 })),
+        getCurrent: jest.fn(() => Promise.resolve({ top: 100, left: 100, width: 800, height: 600 })),
+      },
       storage: {
         local: {
           get: jest.fn(() => Promise.resolve({ events: [] })),
@@ -165,7 +169,7 @@ describe('DailySummary', () => {
     test('should filter events for today only', async () => {
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const tomorrow = new Date(Date.now() + 48 * 60 * 60 * 1000);
-      const today = new Date(Date.now() + 2 * 60 * 60 * 1000);
+      const todayFuture = new Date(Date.now() + 2 * 60 * 60 * 1000);
 
       const mockEvents = [
         {
@@ -176,7 +180,7 @@ describe('DailySummary', () => {
         {
           id: '2',
           title: 'Today Meeting',
-          startTime: today.toISOString(),
+          startTime: todayFuture.toISOString(),
         },
         {
           id: '3',
@@ -193,6 +197,43 @@ describe('DailySummary', () => {
 
       const callArgs = chrome.notifications.create.mock.calls[0][1];
       expect(callArgs.title).toContain('1 Meeting');
+    });
+
+    test('should include meetings that already started earlier today', async () => {
+      // Mock current time as 10 AM
+      const now = new Date();
+      now.setHours(10, 0, 0, 0);
+
+      // Meeting that started at 9 AM today (1 hour before 10 AM summary)
+      const earlierToday = new Date(now);
+      earlierToday.setHours(9, 0, 0, 0);
+
+      // Meeting that starts at 2 PM today
+      const laterToday = new Date(now);
+      laterToday.setHours(14, 0, 0, 0);
+
+      const mockEvents = [
+        {
+          id: '1',
+          title: 'Morning Standup',
+          startTime: earlierToday.toISOString(),
+        },
+        {
+          id: '2',
+          title: 'Afternoon Review',
+          startTime: laterToday.toISOString(),
+        },
+      ];
+
+      global.chrome.storage.local.get = jest.fn(() =>
+        Promise.resolve({ events: mockEvents })
+      );
+
+      await DailySummary.sendDailySummary();
+
+      const callArgs = chrome.notifications.create.mock.calls[0][1];
+      // Should include BOTH meetings - the one that already started and the future one
+      expect(callArgs.title).toContain('2 Meeting');
     });
   });
 
@@ -252,7 +293,7 @@ describe('DailySummary', () => {
 
       const message = DailySummary.formatSummaryMessage(events);
 
-      expect(message).toContain('⏱️');
+      // Should contain total duration (30 min + 45 min = 1h 15m)
       expect(message).toMatch(/1h\s+15m/);
     });
 

@@ -66,6 +66,9 @@ class PingMeetService {
     // Set up periodic calendar API sync (every 2 minutes for better reliability)
     chrome.alarms.create('CALENDAR_API_SYNC', { periodInMinutes: 2 });
 
+    // Set up periodic DOM sync trigger (every 2 minutes) for content scripts
+    chrome.alarms.create('DOM_SYNC_TRIGGER', { periodInMinutes: 2 });
+
     // Initial API sync if connected (with deduplication after)
     await this.syncFromCalendarAPI();
 
@@ -215,6 +218,39 @@ class PingMeetService {
   }
 
   /**
+   * Trigger DOM sync by sending message to all calendar tabs
+   * This ensures content scripts re-read the DOM even if the tab is idle
+   */
+  async triggerDOMSync() {
+    try {
+      // Find all tabs with Google Calendar or Outlook Calendar open
+      const googleTabs = await chrome.tabs.query({ url: 'https://calendar.google.com/*' });
+      const outlookTabs = await chrome.tabs.query({ url: ['https://outlook.office.com/*', 'https://outlook.live.com/*'] });
+
+      const allCalendarTabs = [...googleTabs, ...outlookTabs];
+
+      if (allCalendarTabs.length === 0) {
+        console.log('PingMeet: No calendar tabs open for DOM sync');
+        return;
+      }
+
+      console.log(`PingMeet: Triggering DOM sync on ${allCalendarTabs.length} calendar tab(s)`);
+
+      // Send sync message to each tab
+      for (const tab of allCalendarTabs) {
+        try {
+          await chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_DOM_SYNC' });
+        } catch (error) {
+          // Tab might not have content script loaded yet, ignore
+          console.log(`PingMeet: Could not send sync message to tab ${tab.id}:`, error.message);
+        }
+      }
+    } catch (error) {
+      console.error('PingMeet: Error triggering DOM sync', error);
+    }
+  }
+
+  /**
    * Handle messages from content script or other components
    */
   async handleMessage(message, _sender) {
@@ -239,6 +275,12 @@ class PingMeetService {
         await DurationTracker.stopTracking();
         this.activeMeetingTabId = null;
         return { stopped: true };
+
+      case 'TEST_DAILY_SUMMARY':
+        // Manual trigger for testing daily summary popup
+        console.log('PingMeet: Manual daily summary trigger received');
+        await DailySummary.sendDailySummary();
+        return { triggered: true };
 
       default:
         return { error: 'Unknown message type' };
@@ -400,8 +442,15 @@ class PingMeetService {
       return;
     }
 
+    // Handle DOM sync trigger - notify content scripts to re-read calendar
+    if (alarm.name === 'DOM_SYNC_TRIGGER') {
+      await this.triggerDOMSync();
+      return;
+    }
+
     // Handle daily summary alarm
     if (alarm.name === 'daily_summary') {
+      console.log('PingMeet: Daily summary alarm fired');
       await DailySummary.sendDailySummary();
       return;
     }
