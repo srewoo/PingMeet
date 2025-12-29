@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PingMeet",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Never miss a meeting - Get notified 2 minutes before your meetings start",
 
   "permissions": [
