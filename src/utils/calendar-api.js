@@ -23,6 +23,112 @@ export class CalendarAPI {
 
   static STORAGE_KEY = 'calendarConnection';
   static CREDENTIALS_KEY = 'calendarCredentials';
+  static FAILURE_TRACKING_KEY = 'calendarFailureTracking';
+
+  // Grace period before disconnecting (24 hours in milliseconds)
+  static DISCONNECT_GRACE_PERIOD = 24 * 60 * 60 * 1000;
+
+  // ==================== Network Error Detection ====================
+
+  /**
+   * Check if an error is a network/connectivity error (should retry later, not disconnect)
+   * @param {Error} error - The error to check
+   * @returns {boolean} True if this is a network error
+   */
+  static isNetworkError(error) {
+    if (!error) return false;
+    const message = error.message?.toLowerCase() || '';
+    const networkPatterns = [
+      'connection failed',
+      'network',
+      'fetch',
+      'timeout',
+      'net::',
+      '-106',  // Chrome ERR_INTERNET_DISCONNECTED
+      '-105',  // Chrome ERR_NAME_NOT_RESOLVED
+      '-102',  // Chrome ERR_CONNECTION_REFUSED
+      '-101',  // Chrome ERR_CONNECTION_RESET
+      '-100',  // Chrome ERR_CONNECTION_CLOSED
+      '-7',    // Chrome ERR_TIMED_OUT
+      'failed to fetch',
+      'networkerror',
+      'econnrefused',
+      'enotfound',
+      'etimedout',
+      'econnreset'
+    ];
+    return networkPatterns.some(pattern => message.includes(pattern));
+  }
+
+  /**
+   * Check if an error is an authentication error (should disconnect immediately)
+   * @param {Error} error - The error to check
+   * @returns {boolean} True if this is an auth error
+   */
+  static isAuthError(error) {
+    if (!error) return false;
+    const message = error.message?.toLowerCase() || '';
+    const authPatterns = [
+      'invalid_grant',
+      'expired',
+      'revoked',
+      'invalid_client',
+      'unauthorized_client',
+      'access_denied',
+      'invalid_token'
+    ];
+    return authPatterns.some(pattern => message.includes(pattern));
+  }
+
+  /**
+   * Track a token refresh failure for a provider
+   * @param {string} provider - 'google' or 'outlook'
+   * @returns {Promise<{shouldDisconnect: boolean, firstFailure: number, failureCount: number}>}
+   */
+  static async trackFailure(provider) {
+    const data = await chrome.storage.local.get(this.FAILURE_TRACKING_KEY);
+    const tracking = data[this.FAILURE_TRACKING_KEY] || {};
+    const providerTracking = tracking[provider] || { firstFailure: null, failureCount: 0 };
+
+    const now = Date.now();
+
+    if (!providerTracking.firstFailure) {
+      providerTracking.firstFailure = now;
+    }
+    providerTracking.failureCount++;
+    providerTracking.lastFailure = now;
+
+    tracking[provider] = providerTracking;
+    await chrome.storage.local.set({ [this.FAILURE_TRACKING_KEY]: tracking });
+
+    // Should disconnect only if failures have persisted for more than the grace period
+    const shouldDisconnect = (now - providerTracking.firstFailure) > this.DISCONNECT_GRACE_PERIOD;
+
+    console.log(`PingMeet: ${provider} failure tracked - count: ${providerTracking.failureCount}, ` +
+      `first failure: ${new Date(providerTracking.firstFailure).toISOString()}, ` +
+      `should disconnect: ${shouldDisconnect}`);
+
+    return {
+      shouldDisconnect,
+      firstFailure: providerTracking.firstFailure,
+      failureCount: providerTracking.failureCount
+    };
+  }
+
+  /**
+   * Clear failure tracking for a provider (call on successful refresh)
+   * @param {string} provider - 'google' or 'outlook'
+   */
+  static async clearFailureTracking(provider) {
+    const data = await chrome.storage.local.get(this.FAILURE_TRACKING_KEY);
+    const tracking = data[this.FAILURE_TRACKING_KEY] || {};
+
+    if (tracking[provider]) {
+      console.log(`PingMeet: Clearing ${provider} failure tracking after successful refresh`);
+      delete tracking[provider];
+      await chrome.storage.local.set({ [this.FAILURE_TRACKING_KEY]: tracking });
+    }
+  }
 
   // ==================== PKCE Helper Functions ====================
 
@@ -772,11 +878,29 @@ export class CalendarAPI {
             expiresAt: expiresAt
           });
 
+          // Clear any previous failure tracking on success
+          await this.clearFailureTracking('outlook');
+
           console.log('PingMeet: Outlook token refreshed successfully');
           return tokens.access_token;
         } catch (error) {
           console.error('PingMeet: Outlook token refresh failed', error);
-          // Refresh failed - disconnect and notify user
+
+          // For network errors, track failure and only disconnect after grace period
+          if (this.isNetworkError(error)) {
+            const { shouldDisconnect, failureCount } = await this.trackFailure('outlook');
+
+            if (shouldDisconnect) {
+              console.log('PingMeet: Network failures persisted beyond grace period, disconnecting Outlook');
+              await this.saveConnection('outlook', { connected: false });
+              this.notifyTokenExpired('Outlook Calendar');
+            } else {
+              console.log(`PingMeet: Network error for Outlook (attempt ${failureCount}), will retry on next sync`);
+            }
+            return null;
+          }
+
+          // For auth errors or other failures, disconnect immediately
           await this.saveConnection('outlook', { connected: false });
           this.notifyTokenExpired('Outlook Calendar');
           return null;
@@ -974,14 +1098,18 @@ export class CalendarAPI {
               expiresAt: Date.now() + (3600 * 1000)
             });
 
+            // Clear any previous failure tracking on success
+            await this.clearFailureTracking('google');
+
             console.log('PingMeet: Google token refreshed successfully (Simple Mode)');
             return newToken;
           } catch (error) {
             lastError = error;
             console.warn(`PingMeet: Simple mode token refresh attempt ${attempt} failed:`, error.message);
 
-            // Don't retry on certain errors
-            if (error.message.includes('user') || 
+            // Don't retry on auth errors - these require user action
+            if (this.isAuthError(error) ||
+                error.message.includes('user') ||
                 error.message.includes('denied') ||
                 error.message.includes('not signed in')) {
               break;
@@ -994,7 +1122,24 @@ export class CalendarAPI {
           }
         }
 
+        // Handle failure after all retries exhausted
         console.error('PingMeet: Simple mode token refresh failed after retries', lastError);
+
+        // For network errors, track failure and only disconnect after grace period
+        if (this.isNetworkError(lastError)) {
+          const { shouldDisconnect, failureCount } = await this.trackFailure('google');
+
+          if (shouldDisconnect) {
+            console.log('PingMeet: Network failures persisted beyond grace period, disconnecting Google');
+            await this.saveConnection('google', { connected: false });
+            this.notifyTokenExpired('Google Calendar');
+          } else {
+            console.log(`PingMeet: Network error for Google (attempt ${failureCount}), will retry on next sync`);
+          }
+          return null;
+        }
+
+        // For auth errors, disconnect immediately
         await this.saveConnection('google', { connected: false });
         this.notifyTokenExpired('Google Calendar');
         return null;
@@ -1025,11 +1170,29 @@ export class CalendarAPI {
             expiresAt: expiresAt
           });
 
+          // Clear any previous failure tracking on success
+          await this.clearFailureTracking('google');
+
           console.log('PingMeet: Google token refreshed successfully (Advanced Mode)');
           return tokens.access_token;
         } catch (error) {
           console.error('PingMeet: Token refresh failed', error);
-          // Refresh failed - disconnect and notify user
+
+          // For network errors, track failure and only disconnect after grace period
+          if (this.isNetworkError(error)) {
+            const { shouldDisconnect, failureCount } = await this.trackFailure('google');
+
+            if (shouldDisconnect) {
+              console.log('PingMeet: Network failures persisted beyond grace period, disconnecting Google');
+              await this.saveConnection('google', { connected: false });
+              this.notifyTokenExpired('Google Calendar');
+            } else {
+              console.log(`PingMeet: Network error for Google Advanced mode (attempt ${failureCount}), will retry on next sync`);
+            }
+            return null;
+          }
+
+          // For auth errors or other failures, disconnect immediately
           await this.saveConnection('google', { connected: false });
           this.notifyTokenExpired('Google Calendar');
           return null;
