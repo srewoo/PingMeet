@@ -378,15 +378,19 @@ export class CalendarAPI {
       const token = await new Promise((resolve, reject) => {
         chrome.identity.getAuthToken({ interactive: true }, (token) => {
           if (chrome.runtime.lastError) {
+            console.error('PingMeet: chrome.identity.getAuthToken error:', chrome.runtime.lastError.message);
             reject(new Error(chrome.runtime.lastError.message));
           } else if (!token) {
+            console.error('PingMeet: No token received from chrome.identity');
             reject(new Error('No token received'));
           } else {
+            console.log('PingMeet: Token received, length:', token?.length, 'prefix:', token?.substring(0, 20) + '...');
             resolve(token);
           }
         });
       });
 
+      console.log('PingMeet: Attempting to fetch user info with token');
       // Verify token by fetching user info
       const userInfo = await this.fetchGoogleUserInfo(token);
 
@@ -1213,15 +1217,26 @@ export class CalendarAPI {
    * Fetch user info from Google
    */
   static async fetchGoogleUserInfo(token) {
-    const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    try {
+      const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch user info');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('PingMeet: User info fetch failed', response.status, errorText);
+        throw new Error(`Failed to fetch user info: ${response.status} - ${errorText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      // Handle network errors separately
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        console.error('PingMeet: Network error fetching user info', error);
+        throw new Error('Network error: Unable to connect to Google. Please check your internet connection.');
+      }
+      throw error;
     }
-
-    return response.json();
   }
 
   /**
