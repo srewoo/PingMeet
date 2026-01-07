@@ -69,6 +69,12 @@ class PingMeetService {
     // Set up periodic DOM sync trigger (every 2 minutes) for content scripts
     chrome.alarms.create('DOM_SYNC_TRIGGER', { periodInMinutes: 2 });
 
+    // Set up proactive token refresh (every 15 minutes to keep tokens fresh)
+    chrome.alarms.create('TOKEN_HEALTH_CHECK', { periodInMinutes: 15 });
+
+    // Proactively refresh tokens on service worker startup (handles wake from sleep)
+    await this.proactiveTokenRefresh();
+
     // Initial API sync if connected (with deduplication after)
     await this.syncFromCalendarAPI();
 
@@ -80,6 +86,57 @@ class PingMeetService {
 
     // Restore any active meeting tracking from before service worker restart
     await this.restoreActiveTabTracking();
+
+    // Set up network connectivity monitoring
+    this.setupConnectivityMonitoring();
+  }
+
+  /**
+   * Set up monitoring for network connectivity changes
+   * When network is restored after being offline, proactively refresh tokens
+   */
+  setupConnectivityMonitoring() {
+    // Track last known online state
+    let wasOnline = true;
+
+    // Check connectivity periodically since service workers can't use addEventListener('online')
+    // This runs every 30 seconds to detect connectivity changes
+    setInterval(async () => {
+      try {
+        // Try a simple fetch to check connectivity
+        const isOnline = await this.checkConnectivity();
+
+        // If we just came back online after being offline
+        if (isOnline && !wasOnline) {
+          console.log('PingMeet: Network connectivity restored, refreshing tokens...');
+          await this.proactiveTokenRefresh();
+          await this.syncFromCalendarAPI();
+        }
+
+        wasOnline = isOnline;
+      } catch (error) {
+        wasOnline = false;
+      }
+    }, 30000); // Check every 30 seconds
+
+    console.log('PingMeet: Network connectivity monitoring initialized');
+  }
+
+  /**
+   * Check if we have network connectivity
+   * @returns {Promise<boolean>} True if online
+   */
+  async checkConnectivity() {
+    try {
+      // Use a lightweight endpoint to check connectivity
+      const response = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1', {
+        method: 'HEAD',
+        mode: 'no-cors'
+      });
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 
   /**
@@ -464,6 +521,13 @@ class PingMeetService {
       return;
     }
 
+    // Handle proactive token health check alarm
+    if (alarm.name === 'TOKEN_HEALTH_CHECK') {
+      console.log('PingMeet: Token health check alarm fired');
+      await this.proactiveTokenRefresh();
+      return;
+    }
+
     // Handle meeting reminder alarms
     if (!alarm.name.startsWith(ALARM_NAMES.MEETING_PREFIX)) return;
 
@@ -637,6 +701,54 @@ class PingMeetService {
       }
     } catch (error) {
       console.error('PingMeet: Error deduplicating stored events', error);
+    }
+  }
+
+  /**
+   * Proactively refresh tokens to prevent disconnections
+   * Called on service worker startup (wake from sleep) and periodically
+   * This ensures tokens are always fresh and connections stay alive
+   */
+  async proactiveTokenRefresh() {
+    try {
+      console.log('PingMeet: Running proactive token refresh...');
+      const status = await CalendarAPI.getConnectionStatus();
+
+      // Refresh Google token if connected
+      if (status.google) {
+        try {
+          console.log('PingMeet: Proactively refreshing Google token...');
+          const token = await CalendarAPI.getValidToken();
+          if (token) {
+            console.log('PingMeet: Google token is valid/refreshed');
+          } else {
+            console.warn('PingMeet: Google token refresh returned null (may need reconnection)');
+          }
+        } catch (error) {
+          console.warn('PingMeet: Proactive Google token refresh failed:', error.message);
+          // Don't disconnect - the grace period logic in CalendarAPI handles this
+        }
+      }
+
+      // Refresh Outlook token if connected
+      if (status.outlook) {
+        try {
+          console.log('PingMeet: Proactively refreshing Outlook token...');
+          const token = await CalendarAPI.getValidOutlookToken();
+          if (token) {
+            console.log('PingMeet: Outlook token is valid/refreshed');
+          } else {
+            console.warn('PingMeet: Outlook token refresh returned null (may need reconnection)');
+          }
+        } catch (error) {
+          console.warn('PingMeet: Proactive Outlook token refresh failed:', error.message);
+          // Don't disconnect - the grace period logic in CalendarAPI handles this
+        }
+      }
+
+      console.log('PingMeet: Proactive token refresh complete');
+    } catch (error) {
+      console.error('PingMeet: Error in proactive token refresh:', error);
     }
   }
 }

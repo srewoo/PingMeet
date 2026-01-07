@@ -25,8 +25,15 @@ export class CalendarAPI {
   static CREDENTIALS_KEY = 'calendarCredentials';
   static FAILURE_TRACKING_KEY = 'calendarFailureTracking';
 
-  // Grace period before disconnecting (24 hours in milliseconds)
-  static DISCONNECT_GRACE_PERIOD = 24 * 60 * 60 * 1000;
+  // Grace period before disconnecting (48 hours in milliseconds)
+  // Extended to handle longer network outages, laptop sleep, travel, etc.
+  static DISCONNECT_GRACE_PERIOD = 48 * 60 * 60 * 1000;
+
+  // Token refresh buffer - refresh 15 minutes before expiry to ensure freshness
+  static TOKEN_REFRESH_BUFFER_MS = 15 * 60 * 1000;
+
+  // Maximum retry attempts for network errors
+  static MAX_RETRY_ATTEMPTS = 5;
 
   // ==================== Network Error Detection ====================
 
@@ -417,10 +424,10 @@ export class CalendarAPI {
    * @param {string} refreshToken - The refresh token
    * @param {string} clientId - The client ID
    * @param {string} clientSecret - The client secret (required for web app OAuth)
-   * @param {number} retries - Number of retries (default 3)
+   * @param {number} retries - Number of retries (default MAX_RETRY_ATTEMPTS)
    * @returns {Promise<Object>} New tokens
    */
-  static async refreshGoogleToken(refreshToken, clientId, clientSecret, retries = 3) {
+  static async refreshGoogleToken(refreshToken, clientId, clientSecret, retries = CalendarAPI.MAX_RETRY_ATTEMPTS) {
     let lastError;
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -758,10 +765,10 @@ export class CalendarAPI {
    * Refresh Outlook access token using refresh token with retry logic
    * @param {string} refreshToken - The refresh token
    * @param {string} clientId - The client ID
-   * @param {number} retries - Number of retries (default 3)
+   * @param {number} retries - Number of retries (default MAX_RETRY_ATTEMPTS)
    * @returns {Promise<Object>} New tokens
    */
-  static async refreshOutlookToken(refreshToken, clientId, retries = 3) {
+  static async refreshOutlookToken(refreshToken, clientId, retries = CalendarAPI.MAX_RETRY_ATTEMPTS) {
     const scopes = [
       'openid',
       'profile',
@@ -856,9 +863,9 @@ export class CalendarAPI {
       return null;
     }
 
-    // Check if token is expired (with 5 min buffer)
-    if (outlookConnection.expiresAt && Date.now() > outlookConnection.expiresAt - 300000) {
-      console.log('PingMeet: Outlook token expired, attempting auto-refresh...');
+    // Check if token is expired (with buffer to refresh proactively)
+    if (outlookConnection.expiresAt && Date.now() > outlookConnection.expiresAt - this.TOKEN_REFRESH_BUFFER_MS) {
+      console.log('PingMeet: Outlook token expired or expiring soon, attempting auto-refresh...');
 
       // Try to refresh using refresh token
       if (outlookConnection.refreshToken) {
@@ -1062,13 +1069,13 @@ export class CalendarAPI {
       return null;
     }
 
-    // Check if token is expired (with 5 min buffer)
-    if (googleConnection.expiresAt && Date.now() > googleConnection.expiresAt - 300000) {
-      console.log('PingMeet: Google token expired, attempting auto-refresh...');
+    // Check if token is expired (with buffer to refresh proactively)
+    if (googleConnection.expiresAt && Date.now() > googleConnection.expiresAt - this.TOKEN_REFRESH_BUFFER_MS) {
+      console.log('PingMeet: Google token expired or expiring soon, attempting auto-refresh...');
 
       // Simple mode: Use chrome.identity to refresh with retry
       if (googleConnection.authMode === 'simple') {
-        const maxRetries = 3;
+        const maxRetries = this.MAX_RETRY_ATTEMPTS;
         let lastError;
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
