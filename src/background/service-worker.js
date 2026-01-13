@@ -72,6 +72,9 @@ class PingMeetService {
     // Set up proactive token refresh (every 15 minutes to keep tokens fresh)
     chrome.alarms.create('TOKEN_HEALTH_CHECK', { periodInMinutes: 15 });
 
+    // Set up connectivity monitoring (every 1 minute to detect network restoration)
+    chrome.alarms.create('CONNECTIVITY_CHECK', { periodInMinutes: 1 });
+
     // Proactively refresh tokens on service worker startup (handles wake from sleep)
     await this.proactiveTokenRefresh();
 
@@ -86,40 +89,34 @@ class PingMeetService {
 
     // Restore any active meeting tracking from before service worker restart
     await this.restoreActiveTabTracking();
-
-    // Set up network connectivity monitoring
-    this.setupConnectivityMonitoring();
   }
 
   /**
-   * Set up monitoring for network connectivity changes
-   * When network is restored after being offline, proactively refresh tokens
+   * Check network connectivity and handle reconnection
+   * Called by CONNECTIVITY_CHECK alarm every minute
    */
-  setupConnectivityMonitoring() {
-    // Track last known online state
-    let wasOnline = true;
+  async checkAndHandleConnectivity() {
+    try {
+      // Get stored connectivity state
+      const result = await chrome.storage.local.get('lastConnectivityState');
+      const wasOnline = result.lastConnectivityState !== false; // Default to true if not set
 
-    // Check connectivity periodically since service workers can't use addEventListener('online')
-    // This runs every 30 seconds to detect connectivity changes
-    setInterval(async () => {
-      try {
-        // Try a simple fetch to check connectivity
-        const isOnline = await this.checkConnectivity();
+      // Check current connectivity
+      const isOnline = await this.checkConnectivity();
 
-        // If we just came back online after being offline
-        if (isOnline && !wasOnline) {
-          console.log('PingMeet: Network connectivity restored, refreshing tokens...');
-          await this.proactiveTokenRefresh();
-          await this.syncFromCalendarAPI();
-        }
+      // Store current state
+      await chrome.storage.local.set({ lastConnectivityState: isOnline });
 
-        wasOnline = isOnline;
-      } catch (error) {
-        wasOnline = false;
+      // If we just came back online after being offline
+      if (isOnline && !wasOnline) {
+        console.log('PingMeet: Network connectivity restored, refreshing tokens...');
+        await this.proactiveTokenRefresh();
+        await this.syncFromCalendarAPI();
       }
-    }, 30000); // Check every 30 seconds
-
-    console.log('PingMeet: Network connectivity monitoring initialized');
+    } catch (error) {
+      console.error('PingMeet: Error checking connectivity', error);
+      await chrome.storage.local.set({ lastConnectivityState: false });
+    }
   }
 
   /**
@@ -525,6 +522,12 @@ class PingMeetService {
     if (alarm.name === 'TOKEN_HEALTH_CHECK') {
       console.log('PingMeet: Token health check alarm fired');
       await this.proactiveTokenRefresh();
+      return;
+    }
+
+    // Handle connectivity check alarm
+    if (alarm.name === 'CONNECTIVITY_CHECK') {
+      await this.checkAndHandleConnectivity();
       return;
     }
 

@@ -431,8 +431,12 @@ class PopupUI {
         await this.syncCalendarEvents();
       } else {
         // Check for specific error about client_id
-        if (result.error.includes('bad client id') || result.error.includes('OAuth2 not granted')) {
-          alert('One-click connection requires setup. Please use Advanced mode to enter your OAuth credentials.\n\nThis is a one-time setup that enables one-click authentication.');
+        if (result.error.includes('bad client id') || result.error.includes('OAuth2 not granted') || result.error.includes('OAuth2')) {
+          const message = 'One-Click Connect is not configured.\n\n' +
+                         'To use this feature, the extension needs a configured OAuth2 client in Google Cloud Console.\n\n' +
+                         'For now, please use Advanced Mode to connect with your own Google OAuth credentials.\n\n' +
+                         'Click OK to switch to Advanced Mode.';
+          alert(message);
           this.showGoogleAdvancedMode();
         } else {
           alert('Failed to connect: ' + result.error);
@@ -440,8 +444,12 @@ class PopupUI {
       }
     } catch (error) {
       console.error('PingMeet: Simple Google connection error', error);
-      if (error.message.includes('bad client id') || error.message.includes('OAuth2 not granted')) {
-        alert('One-click connection requires setup. Please use Advanced mode to enter your OAuth credentials.\n\nThis is a one-time setup that enables one-click authentication.');
+      if (error.message.includes('bad client id') || error.message.includes('OAuth2 not granted') || error.message.includes('OAuth2')) {
+        const message = 'One-Click Connect is not configured.\n\n' +
+                       'To use this feature, the extension needs a configured OAuth2 client in Google Cloud Console.\n\n' +
+                       'For now, please use Advanced Mode to connect with your own Google OAuth credentials.\n\n' +
+                       'Click OK to switch to Advanced Mode.';
+        alert(message);
         this.showGoogleAdvancedMode();
       } else {
         alert('Connection error: ' + error.message);
