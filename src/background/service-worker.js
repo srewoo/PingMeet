@@ -126,7 +126,7 @@ class PingMeetService {
   async checkConnectivity() {
     try {
       // Use a lightweight endpoint to check connectivity
-      const response = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1', {
+      await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1', {
         method: 'HEAD',
         mode: 'no-cors'
       });
@@ -150,7 +150,7 @@ class PingMeetService {
     });
 
     // Track when user navigates away from meeting
-    chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+    chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, _tab) => {
       if (this.activeMeetingTabId === tabId && changeInfo.url) {
         // Check if navigated away from meeting platform
         const isMeetingUrl = this.isMeetingUrl(changeInfo.url);
@@ -367,12 +367,15 @@ class PingMeetService {
       return;
     }
 
+    // Get old events before processing new ones (for cleanup comparison)
+    const oldEvents = await StorageManager.getEvents();
+
     // Check which APIs are connected - if connected, prefer API over DOM
     const apiStatus = await CalendarAPI.getConnectionStatus();
 
     // Filter out DOM events when API is connected for that calendar
     // This prevents duplicate reminders from both sources
-    let filteredEvents = events.filter(event => {
+    const filteredEvents = events.filter(event => {
       const source = event.source || '';
 
       // If Google API is connected, skip Google DOM events
@@ -420,6 +423,9 @@ class PingMeetService {
         }
       }
     }
+
+    // Clean up alarms for removed events (before storing new events)
+    await this.cleanupRemovedEventAlarms(oldEvents, uniqueEvents);
 
     // Store events (with conflict info)
     await StorageManager.saveEvents(uniqueEvents);
@@ -672,6 +678,74 @@ class PingMeetService {
                    (b.location?.length || 0);
 
     return scoreA > scoreB;
+  }
+
+  /**
+   * Generate normalized alarm name for an event
+   * Uses the same logic as scheduleReminder to ensure consistency
+   * @param {Object} event - Event object
+   * @returns {string} Normalized alarm name
+   */
+  generateAlarmName(event) {
+    if (!event.startTime) return null;
+
+    const startTime = new Date(event.startTime);
+    const roundedTime = Math.floor(startTime.getTime() / 60000) * 60000; // Round to minute
+    const normalizedTitle = (event.title || '').toLowerCase().trim().replace(/\s+/g, '-');
+    return `${ALARM_NAMES.MEETING_PREFIX}${normalizedTitle}_${roundedTime}`;
+  }
+
+  /**
+   * Clean up alarms for events that were removed from calendar
+   * @param {Array} oldEvents - Previous events list
+   * @param {Array} newEvents - Updated events list
+   */
+  async cleanupRemovedEventAlarms(oldEvents, newEvents) {
+    if (!oldEvents || oldEvents.length === 0) {
+      return; // No old events to compare
+    }
+
+    // Create a Set of new event alarm names for fast lookup
+    const newEventAlarmNames = new Set();
+    for (const event of newEvents) {
+      const alarmName = this.generateAlarmName(event);
+      if (alarmName) {
+        newEventAlarmNames.add(alarmName);
+      }
+    }
+
+    // Find removed events by checking which old events are not in new events
+    const removedEvents = [];
+    for (const oldEvent of oldEvents) {
+      const alarmName = this.generateAlarmName(oldEvent);
+      if (alarmName && !newEventAlarmNames.has(alarmName)) {
+        removedEvents.push(oldEvent);
+      }
+    }
+
+    if (removedEvents.length === 0) {
+      return; // No events were removed
+    }
+
+    console.log(`PingMeet: Detected ${removedEvents.length} removed event(s), cleaning up alarms...`);
+
+    // Cancel alarms for removed events
+    let canceledCount = 0;
+    for (const event of removedEvents) {
+      const alarmName = this.generateAlarmName(event);
+      if (alarmName) {
+        const wasCleared = await chrome.alarms.clear(alarmName);
+        if (wasCleared) {
+          canceledCount++;
+          console.log(`PingMeet: Canceled alarm for removed event: ${event.title}`);
+
+          // Also remove stored event data
+          await StorageManager.removeEvent(alarmName);
+        }
+      }
+    }
+
+    console.log(`PingMeet: Cleaned up ${canceledCount} alarm(s) for removed events`);
   }
 
   /**
