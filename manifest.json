@@ -1,9 +1,8 @@
 {
   "manifest_version": 3,
   "name": "PingMeet",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Never miss a meeting - Get notified minutes before your meetings start",
-
   "permissions": [
     "notifications",
     "alarms",
@@ -13,7 +12,6 @@
     "downloads",
     "identity"
   ],
-
   "oauth2": {
     "client_id": "77484681356-8bprf2ahur3466vp63a0uhaci8ie3h89.apps.googleusercontent.com",
     "scopes": [
@@ -21,7 +19,6 @@
       "https://www.googleapis.com/auth/userinfo.email"
     ]
   },
-
   "host_permissions": [
     "https://calendar.google.com/*",
     "https://outlook.office.com/*",
@@ -32,16 +29,18 @@
     "https://graph.microsoft.com/*",
     "https://login.microsoftonline.com/*"
   ],
-  
   "background": {
     "service_worker": "src/background/service-worker.js",
     "type": "module"
   },
-  
   "content_scripts": [
     {
-      "matches": ["https://calendar.google.com/*"],
-      "js": ["src/content/calendar-reader.js"],
+      "matches": [
+        "https://calendar.google.com/*"
+      ],
+      "js": [
+        "src/content/calendar-reader.js"
+      ],
       "run_at": "document_idle",
       "all_frames": false
     },
@@ -50,12 +49,13 @@
         "https://outlook.office.com/*",
         "https://outlook.live.com/*"
       ],
-      "js": ["src/content/outlook-reader.js"],
+      "js": [
+        "src/content/outlook-reader.js"
+      ],
       "run_at": "document_idle",
       "all_frames": false
     }
   ],
-  
   "action": {
     "default_popup": "src/popup/popup.html",
     "default_icon": {
@@ -65,16 +65,23 @@
       "128": "assets/icons/icon-128.png"
     }
   },
-  
   "icons": {
     "16": "assets/icons/icon-16.png",
     "48": "assets/icons/icon-48.png",
     "128": "assets/icons/icon-128.png"
   },
-
-  "web_accessible_resources": [{
-    "resources": ["assets/sounds/*", "src/reminder/*", "src/content/injected-script.js"],
-    "matches": ["https://calendar.google.com/*", "https://outlook.office.com/*", "https://outlook.live.com/*"]
-  }]
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/sounds/*",
+        "src/reminder/*",
+        "src/content/injected-script.js"
+      ],
+      "matches": [
+        "https://calendar.google.com/*",
+        "https://outlook.office.com/*",
+        "https://outlook.live.com/*"
+      ]
+    }
+  ]
 }
-
