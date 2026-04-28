@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 /**
  * Content Script - Reads calendar events from Outlook Calendar DOM
  * Runs on outlook.office.com and outlook.live.com
@@ -48,7 +49,7 @@ class OutlookReader {
     // Check every 10 seconds if extension context is still valid
     this.healthCheckInterval = setInterval(() => {
       if (!this.isContextValid() && !this.contextInvalidated) {
-        console.log('PingMeet: Extension was reloaded, cleaning up...');
+        logger.debug('Extension was reloaded, cleaning up...');
         this.handleContextInvalidation();
       }
     }, 10000);
@@ -58,11 +59,11 @@ class OutlookReader {
    * Initialize the Outlook reader
    */
   init() {
-    console.log('PingMeet: Outlook reader initializing (Enhanced v2)...');
+    logger.debug('Outlook reader initializing (Enhanced v2)...');
 
     // Verify context is valid before starting
     if (!this.isContextValid()) {
-      console.error('PingMeet: Extension context is invalid at initialization');
+      logger.error('Extension context is invalid at initialization');
       this.handleContextInvalidation();
       return;
     }
@@ -73,7 +74,7 @@ class OutlookReader {
     // Listen for sync trigger from background service worker
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.type === 'TRIGGER_DOM_SYNC') {
-        console.log('PingMeet: Received DOM sync trigger from background');
+        logger.debug('Received DOM sync trigger from background');
         this.readEvents();
         sendResponse({ success: true });
       }
@@ -87,26 +88,26 @@ class OutlookReader {
     window.addEventListener('message', (event) => {
       // Standard API data (Fetch/XHR)
       if (event.data?.type === 'PINGMEET_CALENDAR_DATA' && event.data?.source === 'outlook') {
-        console.log('PingMeet: Received Outlook calendar data from page context');
+        logger.debug('Received Outlook calendar data from page context');
         this.handleApiData(event.data.data);
       }
 
       // React state extraction data
       if (event.data?.type === 'PINGMEET_REACT_STATE') {
-        console.log('PingMeet: Received React state data');
+        logger.debug('Received React state data');
         this.handleReactStateData(event.data.events);
       }
 
       // LocalStorage/SessionStorage data
       if (event.data?.type === 'PINGMEET_STORAGE_DATA') {
-        console.log('PingMeet: Received storage data');
+        logger.debug('Received storage data');
         this.handleStorageData(event.data.events);
       }
     });
 
     // Wait for calendar to load, then read DOM
     this.waitForCalendar().then(() => {
-      console.log('PingMeet: Outlook calendar DOM ready, reading events...');
+      logger.debug('Outlook calendar DOM ready, reading events...');
       this.readEvents();
       this.observeChanges();
       this.observeEventPopups(); // NEW: Watch for event detail popups
@@ -122,7 +123,7 @@ class OutlookReader {
     if (this.contextInvalidated || !this.isContextValid()) return;
 
     if (events && events.length > 0) {
-      console.log(`PingMeet: Processing ${events.length} events from React state`);
+      logger.debug(`Processing ${events.length} events from React state`);
       const mergedEvents = this.mergeEventSources(this.lastEvents, events);
       if (mergedEvents.length > 0) {
         this.sendToBackground(mergedEvents);
@@ -137,7 +138,7 @@ class OutlookReader {
     if (this.contextInvalidated || !this.isContextValid()) return;
 
     if (events && events.length > 0) {
-      console.log(`PingMeet: Processing ${events.length} events from storage`);
+      logger.debug(`Processing ${events.length} events from storage`);
       const mergedEvents = this.mergeEventSources(this.lastEvents, events);
       if (mergedEvents.length > 0) {
         this.sendToBackground(mergedEvents);
@@ -204,9 +205,9 @@ class OutlookReader {
         this.remove();
       };
       (document.head || document.documentElement).appendChild(script);
-      console.log('PingMeet: Injected page script for Outlook API interception');
+      logger.debug('Injected page script for Outlook API interception');
     } catch (e) {
-      console.warn('PingMeet: Could not inject page script', e);
+      logger.warn('Could not inject page script', e);
     }
   }
 
@@ -225,7 +226,7 @@ class OutlookReader {
     if (data?.value && Array.isArray(data.value)) {
       const events = this.parseApiEvents(data.value);
       if (events.length > 0) {
-        console.log(`PingMeet: Parsed ${events.length} Outlook events from API`);
+        logger.debug(`Parsed ${events.length} Outlook events from API`);
         this.sendToBackground(events);
       }
     }
@@ -249,11 +250,11 @@ class OutlookReader {
 
         if (calendarElement) {
           clearInterval(checkInterval);
-          console.log('PingMeet: Outlook calendar DOM detected');
+          logger.debug('Outlook calendar DOM detected');
           resolve();
         } else if (attempts >= maxAttempts) {
           clearInterval(checkInterval);
-          console.log('PingMeet: Outlook detection timeout, proceeding anyway');
+          logger.debug('Outlook detection timeout, proceeding anyway');
           resolve();
         }
       }, 500);
@@ -277,7 +278,7 @@ class OutlookReader {
     try {
       // Strategy 1: Event items with data-event-id
       const eventElements = document.querySelectorAll('[data-event-id], [data-eventid]');
-      console.log(`PingMeet: Found ${eventElements.length} Outlook event elements`);
+      logger.debug(`Found ${eventElements.length} Outlook event elements`);
       
       eventElements.forEach(el => {
         const event = this.parseEventElement(el);
@@ -308,14 +309,14 @@ class OutlookReader {
       });
 
       const uniqueEvents = this.deduplicateEvents(events);
-      console.log(`PingMeet: Total unique Outlook events: ${uniqueEvents.length}`);
+      logger.debug(`Total unique Outlook events: ${uniqueEvents.length}`);
 
       if (uniqueEvents.length > 0 || this.hasChanges(uniqueEvents)) {
         this.lastEvents = uniqueEvents;
         this.sendToBackground(uniqueEvents);
       }
     } catch (error) {
-      console.error('PingMeet: Error reading Outlook events', error);
+      logger.error('Error reading Outlook events', error);
     }
   }
 
@@ -746,7 +747,7 @@ class OutlookReader {
       subtree: true
     });
 
-    console.log('PingMeet: Outlook event popup observer active');
+    logger.debug('Outlook event popup observer active');
   }
 
   /**
@@ -765,7 +766,7 @@ class OutlookReader {
 
       if (!eventId || this.eventDetailsCache.has(eventId)) return;
 
-      console.log('PingMeet: Scraping Outlook event popup for:', eventId);
+      logger.debug('Scraping Outlook event popup for:', eventId);
 
       const details = { id: eventId, source: 'outlook-dom' };
 
@@ -803,7 +804,7 @@ class OutlookReader {
       // Cache and merge
       if (Object.keys(details).length > 2) {
         this.eventDetailsCache.set(eventId, details);
-        console.log('PingMeet: Scraped Outlook event details:', details);
+        logger.debug('Scraped Outlook event details:', details);
 
         const existingEvent = this.lastEvents.find(e => e.id === eventId);
         if (existingEvent) {
@@ -815,7 +816,7 @@ class OutlookReader {
         }
       }
     } catch (error) {
-      console.warn('PingMeet: Error scraping Outlook event popup', error);
+      logger.warn('Error scraping Outlook event popup', error);
     }
   }
 
@@ -845,7 +846,7 @@ class OutlookReader {
       subtree: true,
     });
 
-    console.log('PingMeet: Observing Outlook calendar changes');
+    logger.debug('Observing Outlook calendar changes');
   }
 
   /**
@@ -889,7 +890,7 @@ class OutlookReader {
 
     // Check if extension context is still valid
     if (!this.isContextValid()) {
-      console.warn('PingMeet: Extension context invalidated. Please refresh the page.');
+      logger.warn('Extension context invalidated. Please refresh the page.');
       this.handleContextInvalidation();
       return;
     }
@@ -911,18 +912,18 @@ class OutlookReader {
             if (error.includes('Extension context invalidated') || 
                 error.includes('message port closed') ||
                 error.includes('receiving end does not exist')) {
-              console.warn('PingMeet: Extension context invalidated. Please refresh the page.');
+              logger.warn('Extension context invalidated. Please refresh the page.');
               this.handleContextInvalidation();
             } else {
-              console.error('PingMeet: Error sending Outlook events', chrome.runtime.lastError);
+              logger.error('Error sending Outlook events', chrome.runtime.lastError);
             }
           } else {
-            console.log(`PingMeet: Sent ${events.length} Outlook events to background`);
+            logger.debug(`Sent ${events.length} Outlook events to background`);
           }
         }
       );
     } catch (error) {
-      console.error('PingMeet: Failed to send message', error);
+      logger.error('Failed to send message', error);
       // Check if it's a context invalidation error
       if (error.message && 
           (error.message.includes('Extension context invalidated') || 
@@ -942,7 +943,7 @@ class OutlookReader {
       return;
     }
 
-    console.log('PingMeet: Handling context invalidation - cleaning up...');
+    logger.debug('Handling context invalidation - cleaning up...');
     this.contextInvalidated = true;
 
     // Clear any running intervals to prevent further errors
@@ -1084,7 +1085,7 @@ class OutlookReader {
 
     setTimeout(() => {
       clearInterval(countdownInterval);
-      console.log('PingMeet: Auto-reloading page after context invalidation...');
+      logger.debug('Auto-reloading page after context invalidation...');
       window.location.reload();
     }, 30000);
   }

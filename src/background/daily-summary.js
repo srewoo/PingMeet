@@ -4,6 +4,7 @@
  */
 
 import { StorageManager } from '../utils/storage.js';
+import { logger } from '../utils/logger.js';
 import { NotificationManager } from './notification-manager.js';
 
 export class DailySummary {
@@ -34,7 +35,7 @@ export class DailySummary {
       periodInMinutes: 24 * 60, // Repeat every 24 hours
     });
 
-    console.log(`PingMeet: Daily summary scheduled for ${next10AM.toLocaleString()}`);
+    logger.debug(`Daily summary scheduled for ${next10AM.toLocaleString()}`);
   }
 
   /**
@@ -45,7 +46,15 @@ export class DailySummary {
       // Check if daily summary is enabled in settings
       const isEnabled = await this.isEnabled();
       if (!isEnabled) {
-        console.log('PingMeet: Daily summary is disabled in settings');
+        logger.debug('Daily summary is disabled in settings');
+        return;
+      }
+
+      // Coalesce with reminder notifications: if a meeting reminder is due
+      // within ±5 minutes of now, skip the summary so we don't pile two popups
+      // on top of each other.
+      if (await this.hasReminderNearby(5)) {
+        logger.debug('Skipping daily summary — reminder notification is firing nearby');
         return;
       }
 
@@ -76,9 +85,27 @@ export class DailySummary {
       // Also send OS notification as a secondary alert
       await this.sendOSNotification(todaysEvents);
 
-      console.log(`PingMeet: Daily summary sent for ${todaysEvents.length} meetings`);
+      logger.debug(`Daily summary sent for ${todaysEvents.length} meetings`);
     } catch (error) {
-      console.error('PingMeet: Error sending daily summary', error);
+      logger.error('Error sending daily summary', error);
+    }
+  }
+
+  /**
+   * Check whether any meeting alarm is scheduled within `windowMinutes` of now.
+   */
+  static async hasReminderNearby(windowMinutes = 5) {
+    try {
+      const alarms = await chrome.alarms.getAll();
+      const now = Date.now();
+      const windowMs = windowMinutes * 60 * 1000;
+      return alarms.some(alarm =>
+        typeof alarm.name === 'string' &&
+        alarm.name.startsWith('meeting_') &&
+        Math.abs(alarm.scheduledTime - now) <= windowMs
+      );
+    } catch {
+      return false;
     }
   }
 
@@ -118,9 +145,9 @@ export class DailySummary {
         left: windowConfig.left,
       });
 
-      console.log('PingMeet: Daily summary popup opened');
+      logger.debug('Daily summary popup opened');
     } catch (error) {
-      console.error('PingMeet: Error creating daily summary popup', error);
+      logger.error('Error creating daily summary popup', error);
     }
   }
 
@@ -144,7 +171,7 @@ export class DailySummary {
         };
       }
     } catch (error) {
-      console.warn('PingMeet: Could not determine optimal window position', error);
+      logger.warn('Could not determine optimal window position', error);
     }
 
     return { top: 100, left: 100 };

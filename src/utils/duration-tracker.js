@@ -3,6 +3,7 @@
  */
 
 import { StorageManager } from './storage.js';
+import { logger } from '../utils/logger.js';
 
 export class DurationTracker {
   static STORAGE_KEY = 'meeting_durations';
@@ -38,9 +39,9 @@ export class DurationTracker {
       const filtered = durations.filter(d => new Date(d.startTime) >= thirtyDaysAgo);
 
       await chrome.storage.local.set({ [this.STORAGE_KEY]: filtered });
-      console.log(`PingMeet: Recorded ${duration.toFixed(1)} minutes for "${event.title}"`);
+      logger.debug(`Recorded ${duration.toFixed(1)} minutes for "${event.title}"`);
     } catch (error) {
-      console.error('PingMeet: Error recording meeting duration', error);
+      logger.error('Error recording meeting duration', error);
     }
   }
 
@@ -53,7 +54,7 @@ export class DurationTracker {
       const result = await chrome.storage.local.get(this.STORAGE_KEY);
       return result[this.STORAGE_KEY] || [];
     } catch (error) {
-      console.error('PingMeet: Error getting durations', error);
+      logger.error('Error getting durations', error);
       return [];
     }
   }
@@ -191,7 +192,7 @@ export class DurationTracker {
     };
 
     await chrome.storage.local.set({ active_meeting: activeTracking });
-    console.log(`PingMeet: Started tracking "${event.title}"`);
+    logger.debug(`Started tracking "${event.title}"`);
   }
 
   /**
@@ -210,7 +211,7 @@ export class DurationTracker {
         await chrome.storage.local.remove('active_meeting');
       }
     } catch (error) {
-      console.error('PingMeet: Error stopping tracking', error);
+      logger.error('Error stopping tracking', error);
     }
   }
 

@@ -4,6 +4,7 @@
  */
 
 import { StorageManager } from '../utils/storage.js';
+import { logger } from '../utils/logger.js';
 import { MESSAGE_TYPES, NOTIFICATION_PREFIX, BADGE_COLORS } from '../utils/constants.js';
 
 export class NotificationManager {
@@ -14,23 +15,56 @@ export class NotificationManager {
   static async triggerAttention(event) {
     const settings = await StorageManager.getSettings();
 
-    console.log(`PingMeet: Triggering attention for "${event.title}"`);
+    logger.debug(`Triggering attention for "${event.title}"`);
 
-    // 1. OS Notification (always)
+    // DND / focus mode: active if either a manual "Quiet for X" timer is set
+    // or NOW falls inside one of the user's recurring DND windows.
+    const manualDnd = !!(settings.dndUntil && Date.now() < settings.dndUntil);
+    const scheduledDnd = this.isInScheduledDnd(settings);
+    const dndActive = manualDnd || scheduledDnd;
+    if (dndActive) {
+      logger.debug(`DND active (manual=${manualDnd}, scheduled=${scheduledDnd}) — suppressing loud surfaces`);
+    }
+
+    // Auto-snooze: if the user already has a tab open for this meeting's
+    // join URL, they're either already in or about to be. Skip the loud
+    // surfaces so we don't interrupt with a redundant popup over the meeting.
+    const inMeeting = await this.isMeetingTabOpen(event);
+    if (inMeeting) {
+      logger.debug(`Meeting tab already open for "${event.title}" — auto-snoozing loud surfaces`);
+    }
+
+    // Working-hours respect: when enabled, suppress loud surfaces outside the
+    // user's configured hours. Still rings for events the user has explicitly
+    // accepted with a meeting invite (i.e., not declined/no response), since
+    // those are deliberate.
+    const outsideWorkHours = this.isOutsideWorkingHours(settings);
+    if (outsideWorkHours) {
+      logger.debug('Outside working hours — suppressing loud surfaces');
+    }
+
+    // VIP events override DND/working-hours suppression — these are flagged
+    // by the user as important enough to interrupt for. Auto-snooze (already
+    // in the meeting) still applies because firing a popup over the meeting
+    // tab is never useful.
+    const isVip = !!event._vip;
+    const suppressLoud = inMeeting || (!isVip && (dndActive || outsideWorkHours));
+
+    // 1. OS Notification (always — silent visual, respects OS DND if user has it)
     await this.showOSNotification(event);
 
     // 2. Popup Window (brings Chrome forward!)
-    if (settings.showPopup !== false) {
+    if (settings.showPopup !== false && !suppressLoud) {
       await this.showReminderWindow(event);
     }
 
     // 3. Sound
-    if (settings.playSound !== false) {
+    if (settings.playSound !== false && !suppressLoud) {
       await this.playSound();
     }
 
     // 4. Voice Reminder
-    if (settings.voiceReminder) {
+    if (settings.voiceReminder && !suppressLoud) {
       await this.speakReminder(event, settings);
     }
 
@@ -43,7 +77,7 @@ export class NotificationManager {
         try {
           await chrome.tabs.create({ url: event.meetingLink, active: true });
         } catch (error) {
-          console.error('PingMeet: Auto-open error', error);
+          logger.error('Auto-open error', error);
         }
       }, 500); // Small delay to ensure other mechanisms show first
     }
@@ -87,7 +121,7 @@ export class NotificationManager {
 
     await chrome.notifications.create(notificationId, notificationOptions);
 
-    console.log(`PingMeet: OS notification created for "${event.title}"`);
+    logger.debug(`OS notification created for "${event.title}"`);
     return notificationId;
   }
 
@@ -143,9 +177,9 @@ export class NotificationManager {
         left: windowConfig.left,
       });
 
-      console.log(`PingMeet: Reminder window opened for "${event.title}"`);
+      logger.debug(`Reminder window opened for "${event.title}"`);
     } catch (error) {
-      console.error('PingMeet: Error creating reminder window', error);
+      logger.error('Error creating reminder window', error);
     }
   }
 
@@ -172,7 +206,7 @@ export class NotificationManager {
         };
       }
     } catch (error) {
-      console.warn('PingMeet: Could not determine optimal window position', error);
+      logger.warn('Could not determine optimal window position', error);
     }
 
     // Fallback to safe default position
@@ -193,19 +227,19 @@ export class NotificationManager {
       // Send message to play sound with error handling
       try {
         await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.PLAY_SOUND });
-        console.log('PingMeet: Sound alert triggered');
+        logger.debug('Sound alert triggered');
       } catch (msgError) {
         // If message fails, the offscreen document might not be ready
-        console.warn('PingMeet: Failed to send message to offscreen document:', msgError.message);
+        logger.warn('Failed to send message to offscreen document:', msgError.message);
 
         // Try recreating the offscreen document and retry once
         await this.recreateOffscreenDocument();
         await this.sleep(150);
         await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.PLAY_SOUND });
-        console.log('PingMeet: Sound alert triggered (retry succeeded)');
+        logger.debug('Sound alert triggered (retry succeeded)');
       }
     } catch (error) {
-      console.error('PingMeet: Error playing sound', error);
+      logger.error('Error playing sound', error);
     }
   }
 
@@ -255,10 +289,10 @@ export class NotificationManager {
     try {
       // Close existing offscreen document
       await chrome.offscreen.closeDocument();
-      console.log('PingMeet: Closed existing offscreen document');
+      logger.debug('Closed existing offscreen document');
     } catch (error) {
       // Ignore error if no document exists
-      console.log('PingMeet: No offscreen document to close');
+      logger.debug('No offscreen document to close');
     }
 
     // Create new offscreen document
@@ -268,9 +302,9 @@ export class NotificationManager {
         reasons: ['AUDIO_PLAYBACK'],
         justification: 'Play meeting reminder sound',
       });
-      console.log('PingMeet: Created new offscreen document');
+      logger.debug('Created new offscreen document');
     } catch (error) {
-      console.error('PingMeet: Error creating offscreen document:', error);
+      logger.error('Error creating offscreen document:', error);
       throw error;
     }
   }
@@ -299,9 +333,9 @@ export class NotificationManager {
       await chrome.action.setBadgeText({ text: `${reminderMinutes}m` });
       await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLORS.URGENT });
 
-      console.log('PingMeet: Badge flashed');
+      logger.debug('Badge flashed');
     } catch (error) {
-      console.error('PingMeet: Error flashing badge', error);
+      logger.error('Error flashing badge', error);
     }
   }
 
@@ -330,10 +364,10 @@ export class NotificationManager {
           type: MESSAGE_TYPES.SPEAK_REMINDER,
           text: speechText
         });
-        console.log('PingMeet: Voice reminder triggered');
+        logger.debug('Voice reminder triggered');
       } catch (msgError) {
         // If message fails, the offscreen document might not be ready
-        console.warn('PingMeet: Failed to send message to offscreen document:', msgError.message);
+        logger.warn('Failed to send message to offscreen document:', msgError.message);
 
         // Try recreating the offscreen document and retry once
         await this.recreateOffscreenDocument();
@@ -342,10 +376,10 @@ export class NotificationManager {
           type: MESSAGE_TYPES.SPEAK_REMINDER,
           text: speechText
         });
-        console.log('PingMeet: Voice reminder triggered (retry succeeded)');
+        logger.debug('Voice reminder triggered (retry succeeded)');
       }
     } catch (error) {
-      console.error('PingMeet: Error speaking reminder', error);
+      logger.error('Error speaking reminder', error);
     }
   }
 
@@ -356,5 +390,99 @@ export class NotificationManager {
    */
   static sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Detect whether the user already has a tab open for this meeting's join URL.
+   * If they do, skip loud surfaces — they're either already in the meeting or
+   * about to join. Falls back to provider-domain match when the exact URL
+   * doesn't show up (Meet/Zoom/Teams sometimes redirect on entry).
+   */
+  /**
+   * Check whether NOW falls outside the user's configured working hours.
+   * Returns false if the feature is off (default).
+   */
+  /**
+   * Is NOW inside any of the user's recurring DND windows?
+   * Each window: { days: [0..6], start: "HH:MM", end: "HH:MM" }.
+   * Windows where end <= start are interpreted as crossing midnight
+   * (e.g. start "22:00" end "07:00" ⇒ active 22:00 today through 07:00 tomorrow).
+   */
+  static isInScheduledDnd(settings) {
+    const windows = Array.isArray(settings?.dndSchedule) ? settings.dndSchedule : [];
+    if (windows.length === 0) return false;
+
+    const now = new Date();
+    const day = now.getDay();
+    const minutes = now.getHours() * 60 + now.getMinutes();
+
+    const parse = (hhmm) => {
+      const m = String(hhmm || '').match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return null;
+      return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+    };
+
+    for (const w of windows) {
+      const days = Array.isArray(w.days) ? w.days : [];
+      const start = parse(w.start);
+      const end = parse(w.end);
+      if (start === null || end === null) continue;
+
+      if (end > start) {
+        if (days.includes(day) && minutes >= start && minutes < end) return true;
+      } else {
+        // Crosses midnight: active if (today is in days AND minutes >= start)
+        // OR (yesterday is in days AND minutes < end)
+        const yesterday = (day + 6) % 7;
+        if (days.includes(day) && minutes >= start) return true;
+        if (days.includes(yesterday) && minutes < end) return true;
+      }
+    }
+    return false;
+  }
+
+  static isOutsideWorkingHours(settings) {
+    if (!settings?.respectWorkingHours) return false;
+    const now = new Date();
+    const day = now.getDay();
+    const hour = now.getHours();
+    const workDays = Array.isArray(settings.workDays) ? settings.workDays : [1, 2, 3, 4, 5];
+    const start = Number.isFinite(settings.workStartHour) ? settings.workStartHour : 9;
+    const end = Number.isFinite(settings.workEndHour) ? settings.workEndHour : 18;
+    if (!workDays.includes(day)) return true;
+    if (hour < start || hour >= end) return true;
+    return false;
+  }
+
+  static async isMeetingTabOpen(event) {
+    if (!event?.meetingLink) return false;
+    try {
+      const link = String(event.meetingLink);
+      const tabs = await chrome.tabs.query({});
+      const lower = link.toLowerCase();
+
+      // Exact match (post-normalize) wins.
+      if (tabs.some(t => t.url && t.url.toLowerCase().startsWith(lower))) {
+        return true;
+      }
+
+      // Fallback: provider host match. Pull a meeting code segment from the URL
+      // to avoid matching unrelated zoom.us / meet.google.com tabs.
+      const m = lower.match(/^https?:\/\/([^/]+)\/(.+)$/);
+      if (!m) return false;
+      const host = m[1];
+      const path = m[2].split(/[?#]/)[0]; // strip query/fragment
+      // Use first non-empty path segment as a meeting key
+      const key = path.split('/').filter(Boolean)[0] || '';
+      if (key.length < 3) return false;
+      return tabs.some(t => {
+        if (!t.url) return false;
+        const u = t.url.toLowerCase();
+        return u.includes(host) && u.includes(key);
+      });
+    } catch (error) {
+      logger.warn('isMeetingTabOpen failed', error?.message);
+      return false;
+    }
   }
 }

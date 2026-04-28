@@ -207,6 +207,32 @@ body {
 .status-text {
   font-size: 13px;
   color: var(--text-secondary);
+  flex: 1;
+}
+
+.sync-now-btn {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  padding: 4px 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all var(--transition-fast);
+}
+
+.sync-now-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.sync-now-btn.spinning svg {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ============================================
@@ -219,6 +245,70 @@ body {
   background: var(--bg-primary);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
+}
+
+/* ============================================
+   DND / FOCUS MODE BAR
+   ============================================ */
+.dnd-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+}
+
+.dnd-bar.active {
+  background: rgba(217, 119, 6, 0.06);
+  border-color: rgba(217, 119, 6, 0.3);
+}
+
+.dnd-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.dnd-bar.active .dnd-status {
+  color: #92400e;
+  font-weight: 600;
+}
+
+.dnd-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.dnd-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.dnd-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.dnd-btn.dnd-off {
+  background: #d97706;
+  color: white;
+  border-color: #d97706;
+}
+
+.dnd-btn.dnd-off:hover {
+  background: #b45309;
 }
 
 .stat-item {
@@ -1523,6 +1613,199 @@ body {
 
 .connection-status.connected {
   color: var(--accent-success);
+}
+
+.connection-card.needs-reauth {
+  border-color: #d97706;
+  background: rgba(217, 119, 6, 0.06);
+}
+
+.connection-status.needs-reauth {
+  color: #d97706;
+  font-weight: 600;
+}
+
+/* ============================================
+   CALENDAR SELECTION LIST
+   ============================================ */
+.calendar-list {
+  margin: 8px 12px 12px;
+  padding: 10px;
+  background: var(--bg-secondary, #f8fafc);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.calendar-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+
+.calendar-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.calendar-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.calendar-list-item input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.calendar-list-item .cal-color {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.calendar-list-item .cal-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-list-item .cal-primary {
+  font-size: 9px;
+  background: var(--accent-success);
+  color: white;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.calendar-list-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 11px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--text-link, var(--accent-primary));
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+}
+
+/* ============================================
+   ADVANCED SETTINGS GROUP
+   ============================================ */
+.settings-group {
+  margin: 12px 0;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-default);
+}
+
+.settings-group-summary {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  padding: 6px 0;
+  list-style: none;
+}
+
+.settings-group-summary::-webkit-details-marker { display: none; }
+
+.settings-group-summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform var(--transition-fast);
+}
+
+.settings-group[open] .settings-group-summary::before {
+  transform: rotate(90deg);
+}
+
+.setting-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.hours-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.hours-row label {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.hours-row input[type="number"] {
+  width: 56px;
+  padding: 4px 6px;
+  font-size: 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.weekday-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.weekday-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.weekday-row input[type="checkbox"] {
+  margin: 0;
+}
+
+.setting-item textarea {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  resize: vertical;
+  min-height: 48px;
 }
 
 .connect-btn {

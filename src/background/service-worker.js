@@ -9,6 +9,7 @@ import { NotificationManager } from './notification-manager.js';
 import { ConflictDetector } from '../utils/conflict-detector.js';
 import { DailySummary } from './daily-summary.js';
 import { CalendarAPI } from '../utils/calendar-api.js';
+import { logger } from '../utils/logger.js';
 import { DurationTracker } from '../utils/duration-tracker.js';
 
 class PingMeetService {
@@ -23,14 +24,14 @@ class PingMeetService {
    * Initialize the service worker
    */
   async init() {
-    console.log('PingMeet: Service worker initialized');
+    logger.debug('Service worker initialized');
 
     // Listen for messages from content script
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       this.handleMessage(message, _sender)
         .then(result => sendResponse(result))
         .catch(error => {
-          console.error('PingMeet: Error handling message', error);
+          logger.error('Error handling message', error);
           sendResponse({ error: error.message });
         });
       return true; // Keep channel open for async response
@@ -39,21 +40,21 @@ class PingMeetService {
     // Listen for alarms
     chrome.alarms.onAlarm.addListener(alarm => {
       this.handleAlarm(alarm).catch(error => {
-        console.error('PingMeet: Error handling alarm', error);
+        logger.error('Error handling alarm', error);
       });
     });
 
     // Listen for notification clicks
     chrome.notifications.onClicked.addListener(notificationId => {
       this.handleNotificationClick(notificationId).catch(error => {
-        console.error('PingMeet: Error handling notification click', error);
+        logger.error('Error handling notification click', error);
       });
     });
 
     // Listen for notification button clicks
     chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) => {
       this.handleNotificationButtonClick(notificationId, buttonIndex).catch(error => {
-        console.error('PingMeet: Error handling notification button', error);
+        logger.error('Error handling notification button', error);
       });
     });
 
@@ -109,12 +110,12 @@ class PingMeetService {
 
       // If we just came back online after being offline
       if (isOnline && !wasOnline) {
-        console.log('PingMeet: Network connectivity restored, refreshing tokens...');
+        logger.debug('Network connectivity restored, refreshing tokens...');
         await this.proactiveTokenRefresh();
         await this.syncFromCalendarAPI();
       }
     } catch (error) {
-      console.error('PingMeet: Error checking connectivity', error);
+      logger.error('Error checking connectivity', error);
       await chrome.storage.local.set({ lastConnectivityState: false });
     }
   }
@@ -143,7 +144,7 @@ class PingMeetService {
     // Track when tabs are closed
     chrome.tabs.onRemoved.addListener(async (tabId) => {
       if (this.activeMeetingTabId === tabId) {
-        console.log('PingMeet: Meeting tab closed, stopping duration tracking');
+        logger.debug('Meeting tab closed, stopping duration tracking');
         await DurationTracker.stopTracking();
         this.activeMeetingTabId = null;
       }
@@ -155,7 +156,7 @@ class PingMeetService {
         // Check if navigated away from meeting platform
         const isMeetingUrl = this.isMeetingUrl(changeInfo.url);
         if (!isMeetingUrl) {
-          console.log('PingMeet: Navigated away from meeting, stopping duration tracking');
+          logger.debug('Navigated away from meeting, stopping duration tracking');
           await DurationTracker.stopTracking();
           this.activeMeetingTabId = null;
         }
@@ -186,7 +187,7 @@ class PingMeetService {
     this.activeMeetingTabId = tabId;
     // Also store in storage in case service worker restarts
     await chrome.storage.local.set({ activeMeetingTabId: tabId });
-    console.log('PingMeet: Now tracking meeting tab:', tabId);
+    logger.debug('Now tracking meeting tab:', tabId);
 
     // Set up auto-stop based on scheduled meeting end time
     const activeTracking = await DurationTracker.getActiveTracking();
@@ -200,7 +201,7 @@ class PingMeetService {
         chrome.alarms.create('AUTO_STOP_MEETING_TRACKING', {
           when: endTime.getTime() + 5 * 60 * 1000
         });
-        console.log('PingMeet: Auto-stop alarm set for', new Date(endTime.getTime() + 5 * 60 * 1000));
+        logger.debug('Auto-stop alarm set for', new Date(endTime.getTime() + 5 * 60 * 1000));
       }
     }
   }
@@ -216,7 +217,7 @@ class PingMeetService {
         const tab = await chrome.tabs.get(result.activeMeetingTabId);
         if (tab && this.isMeetingUrl(tab.url)) {
           this.activeMeetingTabId = result.activeMeetingTabId;
-          console.log('PingMeet: Restored active meeting tab tracking:', this.activeMeetingTabId);
+          logger.debug('Restored active meeting tab tracking:', this.activeMeetingTabId);
         } else {
           // Tab no longer on meeting site, stop tracking
           await DurationTracker.stopTracking();
@@ -239,26 +240,26 @@ class PingMeetService {
       let allEvents = [];
 
       if (status.google) {
-        console.log('PingMeet: Syncing from Google Calendar API...');
+        logger.debug('Syncing from Google Calendar API...');
         const result = await CalendarAPI.fetchGoogleEvents();
 
         if (result.success && result.events.length > 0) {
-          console.log(`PingMeet: Received ${result.events.length} events from Google API`);
+          logger.debug(`Received ${result.events.length} events from Google API`);
           allEvents = allEvents.concat(result.events);
         } else if (!result.success) {
-          console.warn('PingMeet: Google API sync failed:', result.error);
+          logger.warn('Google API sync failed:', result.error);
         }
       }
 
       if (status.outlook) {
-        console.log('PingMeet: Syncing from Outlook Calendar API...');
+        logger.debug('Syncing from Outlook Calendar API...');
         const result = await CalendarAPI.fetchOutlookEvents();
 
         if (result.success && result.events.length > 0) {
-          console.log(`PingMeet: Received ${result.events.length} events from Outlook API`);
+          logger.debug(`Received ${result.events.length} events from Outlook API`);
           allEvents = allEvents.concat(result.events);
         } else if (!result.success) {
-          console.warn('PingMeet: Outlook API sync failed:', result.error);
+          logger.warn('Outlook API sync failed:', result.error);
         }
       }
 
@@ -267,40 +268,55 @@ class PingMeetService {
         await CalendarAPI.updateLastSync();
       }
     } catch (error) {
-      console.error('PingMeet: Error syncing from Calendar API', error);
+      logger.error('Error syncing from Calendar API', error);
     }
   }
 
   /**
-   * Trigger DOM sync by sending message to all calendar tabs
-   * This ensures content scripts re-read the DOM even if the tab is idle
+   * Trigger DOM sync — but only for providers WITHOUT an active OAuth connection.
+   *
+   * Why: previously API sync and DOM sync ran in parallel every 2 minutes. When
+   * a user has OAuth connected, the API is the source of truth and DOM scraping
+   * just produces duplicates and dedup churn. DOM is now strictly a fallback for
+   * providers the user hasn't authenticated.
    */
   async triggerDOMSync() {
     try {
-      // Find all tabs with Google Calendar or Outlook Calendar open
-      const googleTabs = await chrome.tabs.query({ url: 'https://calendar.google.com/*' });
-      const outlookTabs = await chrome.tabs.query({ url: ['https://outlook.office.com/*', 'https://outlook.live.com/*'] });
+      const status = await CalendarAPI.getConnectionStatus();
 
-      const allCalendarTabs = [...googleTabs, ...outlookTabs];
+      const tabQueries = [];
+      if (!status.google) {
+        tabQueries.push(chrome.tabs.query({ url: 'https://calendar.google.com/*' }));
+      }
+      if (!status.outlook) {
+        tabQueries.push(
+          chrome.tabs.query({
+            url: ['https://outlook.office.com/*', 'https://outlook.live.com/*'],
+          })
+        );
+      }
 
-      if (allCalendarTabs.length === 0) {
-        console.log('PingMeet: No calendar tabs open for DOM sync');
+      if (tabQueries.length === 0) {
+        // Both providers connected via API — DOM sync not needed.
         return;
       }
 
-      console.log(`PingMeet: Triggering DOM sync on ${allCalendarTabs.length} calendar tab(s)`);
+      const tabGroups = await Promise.all(tabQueries);
+      const allCalendarTabs = tabGroups.flat();
 
-      // Send sync message to each tab
+      if (allCalendarTabs.length === 0) {
+        return;
+      }
+
       for (const tab of allCalendarTabs) {
         try {
           await chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_DOM_SYNC' });
-        } catch (error) {
-          // Tab might not have content script loaded yet, ignore
-          console.log(`PingMeet: Could not send sync message to tab ${tab.id}:`, error.message);
+        } catch {
+          // Tab might not have content script loaded yet — ignore.
         }
       }
     } catch (error) {
-      console.error('PingMeet: Error triggering DOM sync', error);
+      logger.error('Error triggering DOM sync', error);
     }
   }
 
@@ -332,9 +348,17 @@ class PingMeetService {
 
       case 'TEST_DAILY_SUMMARY':
         // Manual trigger for testing daily summary popup
-        console.log('PingMeet: Manual daily summary trigger received');
+        logger.debug('Manual daily summary trigger received');
         await DailySummary.sendDailySummary();
         return { triggered: true };
+
+      case 'TRIGGER_DOM_SYNC':
+        await this.triggerDOMSync();
+        await this.syncFromCalendarAPI();
+        return { triggered: true };
+
+      case 'SNOOZE_ALL':
+        return { snoozed: await this.handleSnoozeAll(message.minutes || 15) };
 
       default:
         return { error: 'Unknown message type' };
@@ -352,9 +376,9 @@ class PingMeetService {
       // Remove from storage
       await StorageManager.removeEvent(eventId);
 
-      console.log(`PingMeet: Declined and removed meeting ${eventId}`);
+      logger.debug(`Declined and removed meeting ${eventId}`);
     } catch (error) {
-      console.error('PingMeet: Error handling decline', error);
+      logger.error('Error handling decline', error);
     }
   }
 
@@ -363,7 +387,7 @@ class PingMeetService {
    */
   async handleNewEvents(events) {
     if (!events || events.length === 0) {
-      console.log('PingMeet: No events received');
+      logger.debug('No events received');
       return;
     }
 
@@ -380,13 +404,13 @@ class PingMeetService {
 
       // If Google API is connected, skip Google DOM events
       if (apiStatus.google && source === 'google-dom') {
-        console.log(`PingMeet: Skipping DOM event (API connected): ${event.title}`);
+        logger.debug(`Skipping DOM event (API connected): ${event.title}`);
         return false;
       }
 
       // If Outlook API is connected, skip Outlook DOM events
       if (apiStatus.outlook && source === 'outlook-dom') {
-        console.log(`PingMeet: Skipping DOM event (API connected): ${event.title}`);
+        logger.debug(`Skipping DOM event (API connected): ${event.title}`);
         return false;
       }
 
@@ -402,17 +426,17 @@ class PingMeetService {
       return hoursUntil > 0 && hoursUntil <= 24;
     });
 
-    console.log(`PingMeet: Processing ${upcoming.length} upcoming events (API status: Google=${apiStatus.google}, Outlook=${apiStatus.outlook})`);
+    logger.debug(`Processing ${upcoming.length} upcoming events (API status: Google=${apiStatus.google}, Outlook=${apiStatus.outlook})`);
 
     // Deduplicate events from different sources (same event in Google and Outlook)
     const uniqueEvents = this.deduplicateEvents(upcoming);
 
-    console.log(`PingMeet: ${uniqueEvents.length} unique events after deduplication`);
+    logger.debug(`${uniqueEvents.length} unique events after deduplication`);
 
     // Detect conflicts
     const conflicts = ConflictDetector.detectConflicts(uniqueEvents);
     if (conflicts.length > 0) {
-      console.warn(`PingMeet: ${conflicts.length} scheduling conflicts detected`);
+      logger.warn(`${conflicts.length} scheduling conflicts detected`);
 
       // Add conflict info to events
       for (const event of uniqueEvents) {
@@ -444,14 +468,21 @@ class PingMeetService {
    */
   async scheduleReminder(event) {
     if (!event.startTime) {
-      console.warn('PingMeet: Event has no start time', event);
+      logger.warn('Event has no start time', event);
       return;
     }
 
     // Skip notifications for declined meetings
     const userAttendee = event.attendees?.find(a => a.self);
     if (userAttendee?.responseStatus === 'declined') {
-      console.log(`PingMeet: Skipping reminder for declined meeting: ${event.title || 'Untitled'}`);
+      logger.debug(`Skipping reminder for declined meeting: ${event.title || 'Untitled'}`);
+      return;
+    }
+
+    // Skip Out-of-Office and Focus Time events — these are user-blocked time,
+    // not meetings to be reminded of. Provided by Google Calendar's eventType.
+    if (event.eventType === 'outOfOffice' || event.eventType === 'focusTime') {
+      logger.debug(`Skipping reminder for ${event.eventType}: ${event.title || 'Untitled'}`);
       return;
     }
 
@@ -465,13 +496,14 @@ class PingMeetService {
     // Check Chrome's actual alarms (survives service worker restart)
     const existingAlarm = await chrome.alarms.get(alarmName);
     if (existingAlarm) {
-      console.log(`PingMeet: Alarm already scheduled for ${event.title}`);
+      logger.debug(`Alarm already scheduled for ${event.title}`);
       return;
     }
 
     const settings = await StorageManager.getSettings();
+    const offsetMinutes = this.computeReminderOffset(event, settings);
     const reminderTime = new Date(
-      startTime.getTime() - settings.reminderMinutes * TIME.ONE_MINUTE_MS
+      startTime.getTime() - offsetMinutes * TIME.ONE_MINUTE_MS
     );
 
     // Only schedule if reminder time is in the future
@@ -484,11 +516,10 @@ class PingMeetService {
       // This ensures we can retrieve it when the alarm fires
       await StorageManager.saveEvent(alarmName, event);
 
-      console.log(
-        `PingMeet: Scheduled reminder for "${event.title}" at ${reminderTime.toLocaleString()}`
+      logger.debug(`Scheduled reminder for "${event.title}" at ${reminderTime.toLocaleString()}`
       );
     } else {
-      console.log(`PingMeet: Reminder time already passed for "${event.title}"`);
+      logger.debug(`Reminder time already passed for "${event.title}"`);
     }
   }
 
@@ -510,14 +541,14 @@ class PingMeetService {
 
     // Handle daily summary alarm
     if (alarm.name === 'daily_summary') {
-      console.log('PingMeet: Daily summary alarm fired');
+      logger.debug('Daily summary alarm fired');
       await DailySummary.sendDailySummary();
       return;
     }
 
     // Handle auto-stop meeting tracking alarm
     if (alarm.name === 'AUTO_STOP_MEETING_TRACKING') {
-      console.log('PingMeet: Auto-stop meeting tracking alarm fired');
+      logger.debug('Auto-stop meeting tracking alarm fired');
       await DurationTracker.stopTracking();
       this.activeMeetingTabId = null;
       await chrome.storage.local.remove('activeMeetingTabId');
@@ -526,7 +557,7 @@ class PingMeetService {
 
     // Handle proactive token health check alarm
     if (alarm.name === 'TOKEN_HEALTH_CHECK') {
-      console.log('PingMeet: Token health check alarm fired');
+      logger.debug('Token health check alarm fired');
       await this.proactiveTokenRefresh();
       return;
     }
@@ -534,6 +565,15 @@ class PingMeetService {
     // Handle connectivity check alarm
     if (alarm.name === 'CONNECTIVITY_CHECK') {
       await this.checkAndHandleConnectivity();
+      // Piggy-back the badge countdown on this 1-min alarm so the "Xm" tick
+      // stays current without burning an extra alarm slot.
+      try {
+        const events = await StorageManager.getEvents();
+        const upcoming = events.filter(e => new Date(e.startTime).getTime() > Date.now());
+        await this.updateBadge(upcoming.length);
+      } catch (e) {
+        logger.warn('Badge tick failed', e?.message);
+      }
       return;
     }
 
@@ -545,13 +585,18 @@ class PingMeetService {
 
     if (event) {
       const isSnoozeAlarm = alarm.name.includes('_snooze');
-      console.log(`PingMeet: Alarm fired for "${event.title}"${isSnoozeAlarm ? ' (snoozed)' : ''}`);
+      logger.debug(`Alarm fired for "${event.title}"${isSnoozeAlarm ? ' (snoozed)' : ''}`);
+      // Tag VIP so NotificationManager can override DND for these.
+      const settings = await StorageManager.getSettings();
+      if (this.isVipEvent(event, settings)) {
+        event._vip = true;
+      }
       await NotificationManager.triggerAttention(event);
 
       // Cleanup stored event data using alarm name
       await StorageManager.removeEvent(alarm.name);
     } else {
-      console.warn(`PingMeet: No event found for alarm ${alarm.name}`);
+      logger.warn(`No event found for alarm ${alarm.name}`);
     }
   }
 
@@ -583,6 +628,57 @@ class PingMeetService {
   /**
    * Handle snooze request
    */
+  /**
+   * Compute the reminder offset in minutes for an event. When
+   * settings.smartReminderOffset is true, classify the meeting:
+   *   - external (>=1 attendee whose email domain differs from organizer/self)
+   *     → 5 min (more prep time for cross-org calls)
+   *   - internal with attendees → 2 min
+   *   - solo or 1-on-1 → 1 min
+   * Otherwise returns the user's configured static offset.
+   */
+  computeReminderOffset(event, settings) {
+    const fallback = Number.isFinite(settings.reminderMinutes) ? settings.reminderMinutes : 2;
+    // VIP override always wins — give the user max prep time for these.
+    if (this.isVipEvent(event, settings)) return Math.max(fallback, 5);
+    if (!settings.smartReminderOffset) return fallback;
+
+    const attendees = Array.isArray(event.attendees) ? event.attendees : [];
+    if (attendees.length <= 1) return 1;
+
+    // Find self / organizer domain to use as the "internal" baseline.
+    const selfEmail = (attendees.find(a => a.self)?.email || event.organizer?.email || '').toLowerCase();
+    const baseDomain = selfEmail.split('@')[1];
+    if (!baseDomain) return fallback;
+
+    const hasExternal = attendees.some(a => {
+      const dom = (a.email || '').toLowerCase().split('@')[1];
+      return dom && dom !== baseDomain;
+    });
+
+    if (hasExternal) return 5;
+    return 2;
+  }
+
+  /**
+   * Decide whether an event is "VIP" — meaning the organizer matches one of
+   * the user's flagged emails or domains. VIP events bypass DND for the
+   * popup and get a longer reminder offset.
+   */
+  isVipEvent(event, settings) {
+    const list = Array.isArray(settings?.vipOrganizers) ? settings.vipOrganizers : [];
+    if (list.length === 0) return false;
+    const email = (event?.organizer?.email || '').toLowerCase();
+    if (!email) return false;
+    return list.some(entry => {
+      const e = String(entry).toLowerCase().trim();
+      if (!e) return false;
+      if (e.startsWith('@')) return email.endsWith(e); // domain match
+      if (e.includes('@')) return email === e;          // exact email
+      return email.endsWith('@' + e);                   // bare domain
+    });
+  }
+
   async handleSnooze(event, minutes = 1) {
     const snoozeTime = Date.now() + minutes * TIME.ONE_MINUTE_MS;
     const alarmName = `${ALARM_NAMES.MEETING_PREFIX}${event.id}_snooze`;
@@ -594,20 +690,64 @@ class PingMeetService {
     // Use the full alarm name as storage key (consistent with scheduleReminder)
     await StorageManager.saveEvent(alarmName, event);
 
-    console.log(`PingMeet: Snoozed "${event.title}" for ${minutes} minute(s)`);
+    logger.debug(`Snoozed "${event.title}" for ${minutes} minute(s)`);
+  }
+
+  /**
+   * Snooze ALL pending meeting reminders by `minutes`. Returns the count of
+   * alarms shifted. Alarms that would already fire later than the snooze
+   * target are left untouched (no point pulling them earlier).
+   */
+  async handleSnoozeAll(minutes = 15) {
+    const target = Date.now() + minutes * TIME.ONE_MINUTE_MS;
+    const alarms = await chrome.alarms.getAll();
+    let count = 0;
+    for (const alarm of alarms) {
+      if (!alarm.name.startsWith(ALARM_NAMES.MEETING_PREFIX)) continue;
+      if (alarm.scheduledTime >= target) continue;
+      // Reschedule by clearing + recreating; preserve the stored event payload.
+      await chrome.alarms.clear(alarm.name);
+      await chrome.alarms.create(alarm.name, { when: target });
+      count++;
+    }
+    logger.debug(`Snoozed ${count} pending reminders by ${minutes} minute(s)`);
+    return count;
   }
 
   /**
    * Update extension badge
    */
   async updateBadge(count, hasConflicts = false) {
+    // Smart badge: when the next event is within an hour, show "Xm" countdown;
+    // otherwise show the upcoming-count.
+    let text = '';
+    let color = BADGE_COLORS.DEFAULT;
+
     if (count > 0) {
-      await chrome.action.setBadgeText({ text: count.toString() });
-      // Use warning color if there are conflicts
-      const color = hasConflicts ? BADGE_COLORS.WARNING : BADGE_COLORS.DEFAULT;
+      const events = await StorageManager.getEvents();
+      const now = Date.now();
+      const upcoming = events
+        .map(e => ({ e, t: new Date(e.startTime).getTime() }))
+        .filter(({ t }) => t > now)
+        .sort((a, b) => a.t - b.t);
+
+      if (upcoming.length) {
+        const minsUntil = Math.round((upcoming[0].t - now) / 60000);
+        if (minsUntil <= 60) {
+          text = `${minsUntil}m`;
+          color = minsUntil <= 5 ? BADGE_COLORS.URGENT : BADGE_COLORS.WARNING;
+        } else {
+          text = String(count);
+          color = hasConflicts ? BADGE_COLORS.WARNING : BADGE_COLORS.DEFAULT;
+        }
+      } else {
+        text = '';
+      }
+    }
+
+    await chrome.action.setBadgeText({ text });
+    if (text) {
       await chrome.action.setBadgeBackgroundColor({ color });
-    } else {
-      await chrome.action.setBadgeText({ text: '' });
     }
   }
 
@@ -616,7 +756,7 @@ class PingMeetService {
    */
   async loadStoredEvents() {
     const events = await StorageManager.getEvents();
-    console.log(`PingMeet: Loading ${events.length} stored events`);
+    logger.debug(`Loading ${events.length} stored events`);
 
     for (const event of events) {
       await this.scheduleReminder(event);
@@ -727,7 +867,7 @@ class PingMeetService {
       return; // No events were removed
     }
 
-    console.log(`PingMeet: Detected ${removedEvents.length} removed event(s), cleaning up alarms...`);
+    logger.debug(`Detected ${removedEvents.length} removed event(s), cleaning up alarms...`);
 
     // Cancel alarms for removed events
     let canceledCount = 0;
@@ -737,7 +877,7 @@ class PingMeetService {
         const wasCleared = await chrome.alarms.clear(alarmName);
         if (wasCleared) {
           canceledCount++;
-          console.log(`PingMeet: Canceled alarm for removed event: ${event.title}`);
+          logger.debug(`Canceled alarm for removed event: ${event.title}`);
 
           // Also remove stored event data
           await StorageManager.removeEvent(alarmName);
@@ -745,7 +885,7 @@ class PingMeetService {
       }
     }
 
-    console.log(`PingMeet: Cleaned up ${canceledCount} alarm(s) for removed events`);
+    logger.debug(`Cleaned up ${canceledCount} alarm(s) for removed events`);
   }
 
   /**
@@ -758,7 +898,7 @@ class PingMeetService {
       const uniqueEvents = this.deduplicateEvents(events);
 
       if (events.length !== uniqueEvents.length) {
-        console.log(`PingMeet: Cleaned up ${events.length - uniqueEvents.length} duplicate events`);
+        logger.debug(`Cleaned up ${events.length - uniqueEvents.length} duplicate events`);
 
         // Clear and re-save unique events
         await chrome.storage.local.set({ events: uniqueEvents });
@@ -777,7 +917,7 @@ class PingMeetService {
         }
       }
     } catch (error) {
-      console.error('PingMeet: Error deduplicating stored events', error);
+      logger.error('Error deduplicating stored events', error);
     }
   }
 
@@ -788,21 +928,21 @@ class PingMeetService {
    */
   async proactiveTokenRefresh() {
     try {
-      console.log('PingMeet: Running proactive token refresh...');
+      logger.debug('Running proactive token refresh...');
       const status = await CalendarAPI.getConnectionStatus();
 
       // Refresh Google token if connected
       if (status.google) {
         try {
-          console.log('PingMeet: Proactively refreshing Google token...');
+          logger.debug('Proactively refreshing Google token...');
           const token = await CalendarAPI.getValidToken();
           if (token) {
-            console.log('PingMeet: Google token is valid/refreshed');
+            logger.debug('Google token is valid/refreshed');
           } else {
-            console.warn('PingMeet: Google token refresh returned null (may need reconnection)');
+            logger.warn('Google token refresh returned null (may need reconnection)');
           }
         } catch (error) {
-          console.warn('PingMeet: Proactive Google token refresh failed:', error.message);
+          logger.warn('Proactive Google token refresh failed:', error.message);
           // Don't disconnect - the grace period logic in CalendarAPI handles this
         }
       }
@@ -810,22 +950,22 @@ class PingMeetService {
       // Refresh Outlook token if connected
       if (status.outlook) {
         try {
-          console.log('PingMeet: Proactively refreshing Outlook token...');
+          logger.debug('Proactively refreshing Outlook token...');
           const token = await CalendarAPI.getValidOutlookToken();
           if (token) {
-            console.log('PingMeet: Outlook token is valid/refreshed');
+            logger.debug('Outlook token is valid/refreshed');
           } else {
-            console.warn('PingMeet: Outlook token refresh returned null (may need reconnection)');
+            logger.warn('Outlook token refresh returned null (may need reconnection)');
           }
         } catch (error) {
-          console.warn('PingMeet: Proactive Outlook token refresh failed:', error.message);
+          logger.warn('Proactive Outlook token refresh failed:', error.message);
           // Don't disconnect - the grace period logic in CalendarAPI handles this
         }
       }
 
-      console.log('PingMeet: Proactive token refresh complete');
+      logger.debug('Proactive token refresh complete');
     } catch (error) {
-      console.error('PingMeet: Error in proactive token refresh:', error);
+      logger.error('Error in proactive token refresh:', error);
     }
   }
 }

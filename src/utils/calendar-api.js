@@ -5,6 +5,8 @@
  * Users provide their own OAuth credentials
  */
 
+import { logger } from './logger.js';
+
 export class CalendarAPI {
   // Google API endpoints
   static GOOGLE_CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
@@ -111,7 +113,7 @@ export class CalendarAPI {
     // Should disconnect only if failures have persisted for more than the grace period
     const shouldDisconnect = (now - providerTracking.firstFailure) > this.DISCONNECT_GRACE_PERIOD;
 
-    console.log(`PingMeet: ${provider} failure tracked - count: ${providerTracking.failureCount}, ` +
+    logger.debug(`${provider} failure tracked - count: ${providerTracking.failureCount}, ` +
       `first failure: ${new Date(providerTracking.firstFailure).toISOString()}, ` +
       `should disconnect: ${shouldDisconnect}`);
 
@@ -131,7 +133,7 @@ export class CalendarAPI {
     const tracking = data[this.FAILURE_TRACKING_KEY] || {};
 
     if (tracking[provider]) {
-      console.log(`PingMeet: Clearing ${provider} failure tracking after successful refresh`);
+      logger.debug(`Clearing ${provider} failure tracking after successful refresh`);
       delete tracking[provider];
       await chrome.storage.local.set({ [this.FAILURE_TRACKING_KEY]: tracking });
     }
@@ -199,9 +201,9 @@ export class CalendarAPI {
         message: message,
         priority: 1
       });
-      console.log(`PingMeet: ${calendarName} token expired notification sent (mode: ${mode || 'unknown'})`);
+      logger.debug(`${calendarName} token expired notification sent (mode: ${mode || 'unknown'})`);
     } catch (error) {
-      console.error('PingMeet: Error showing token expired notification', error);
+      logger.error('Error showing token expired notification', error);
     }
   }
 
@@ -242,7 +244,7 @@ export class CalendarAPI {
    * Check if user is connected to Google Calendar
    */
   static async isConnected() {
-    const connection = await chrome.storage.local.get(this.STORAGE_KEY);
+    const connection = await this.getConnections();
     return connection[this.STORAGE_KEY]?.google?.connected || false;
   }
 
@@ -250,7 +252,7 @@ export class CalendarAPI {
    * Get connection status for all providers
    */
   static async getConnectionStatus() {
-    const connection = await chrome.storage.local.get(this.STORAGE_KEY);
+    const connection = await this.getConnections();
     return {
       google: connection[this.STORAGE_KEY]?.google?.connected || false,
       outlook: connection[this.STORAGE_KEY]?.outlook?.connected || false
@@ -375,10 +377,10 @@ export class CalendarAPI {
         connectedAt: new Date().toISOString()
       });
 
-      console.log('PingMeet: Connected to Google Calendar with refresh token', userInfo.email);
+      logger.debug('Connected to Google Calendar with refresh token', userInfo.email);
       return { success: true, email: userInfo.email };
     } catch (error) {
-      console.error('PingMeet: Google Calendar connection failed', error);
+      logger.error('Google Calendar connection failed', error);
       return { success: false, error: error.message };
     }
   }
@@ -394,19 +396,19 @@ export class CalendarAPI {
       const token = await new Promise((resolve, reject) => {
         chrome.identity.getAuthToken({ interactive: true }, (token) => {
           if (chrome.runtime.lastError) {
-            console.error('PingMeet: chrome.identity.getAuthToken error:', chrome.runtime.lastError.message);
+            logger.error('chrome.identity.getAuthToken error:', chrome.runtime.lastError.message);
             reject(new Error(chrome.runtime.lastError.message));
           } else if (!token) {
-            console.error('PingMeet: No token received from chrome.identity');
+            logger.error('No token received from chrome.identity');
             reject(new Error('No token received'));
           } else {
-            console.log('PingMeet: Token received, length:', token?.length, 'prefix:', token?.substring(0, 20) + '...');
+            // Token received — never log token material (length/prefix leak risk)
             resolve(token);
           }
         });
       });
 
-      console.log('PingMeet: Attempting to fetch user info with token');
+      logger.debug('Attempting to fetch user info with token');
       // Verify token by fetching user info
       const userInfo = await this.fetchGoogleUserInfo(token);
 
@@ -420,10 +422,10 @@ export class CalendarAPI {
         connectedAt: new Date().toISOString()
       });
 
-      console.log('PingMeet: Connected to Google Calendar (Simple Mode)', userInfo.email);
+      logger.debug('Connected to Google Calendar (Simple Mode)', userInfo.email);
       return { success: true, email: userInfo.email };
     } catch (error) {
-      console.error('PingMeet: Google Calendar simple connection failed', error);
+      logger.error('Google Calendar simple connection failed', error);
       return { success: false, error: error.message };
     }
   }
@@ -440,7 +442,7 @@ export class CalendarAPI {
     let lastError;
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        console.log(`PingMeet: Google token refresh attempt ${attempt}/${retries}`);
+        logger.debug(`Google token refresh attempt ${attempt}/${retries}`);
 
         const params = {
           client_id: clientId,
@@ -467,7 +469,7 @@ export class CalendarAPI {
         return response.json();
       } catch (error) {
         lastError = error;
-        console.warn(`PingMeet: Google token refresh attempt ${attempt} failed:`, error.message);
+        logger.warn(`Google token refresh attempt ${attempt} failed:`, error.message);
 
         // Don't retry on auth errors (invalid_grant, etc.)
         if (error.message.includes('invalid_grant') || 
@@ -492,7 +494,7 @@ export class CalendarAPI {
   static async disconnectGoogle() {
     try {
       // Get stored token
-      const connection = await chrome.storage.local.get(this.STORAGE_KEY);
+      const connection = await this.getConnections();
       const googleConnection = connection[this.STORAGE_KEY]?.google;
 
       if (googleConnection?.accessToken) {
@@ -507,10 +509,10 @@ export class CalendarAPI {
       // Clear connection status but keep credentials
       await this.saveConnection('google', { connected: false });
 
-      console.log('PingMeet: Disconnected from Google Calendar');
+      logger.debug('Disconnected from Google Calendar');
       return { success: true };
     } catch (error) {
-      console.error('PingMeet: Error disconnecting', error);
+      logger.error('Error disconnecting', error);
       return { success: false, error: error.message };
     }
   }
@@ -620,7 +622,7 @@ export class CalendarAPI {
         const userInfo = await this.fetchOutlookUserInfo(access_token);
         userEmail = userInfo.mail || userInfo.userPrincipalName || 'Connected';
       } catch (error) {
-        console.warn('PingMeet: Could not fetch user info, but connection successful', error);
+        logger.warn('Could not fetch user info, but connection successful', error);
       }
 
       // Store connection status with tokens (including refresh token!)
@@ -633,10 +635,10 @@ export class CalendarAPI {
         connectedAt: new Date().toISOString()
       });
 
-      console.log('PingMeet: Connected to Outlook Calendar with refresh token', userEmail);
+      logger.debug('Connected to Outlook Calendar with refresh token', userEmail);
       return { success: true, email: userEmail };
     } catch (error) {
-      console.error('PingMeet: Outlook Calendar connection failed', error);
+      logger.error('Outlook Calendar connection failed', error);
       return { success: false, error: error.message };
     }
   }
@@ -745,7 +747,7 @@ export class CalendarAPI {
         const userInfo = await this.fetchOutlookUserInfo(access_token);
         userEmail = userInfo.mail || userInfo.userPrincipalName || 'Connected';
       } catch (error) {
-        console.warn('PingMeet: Could not fetch user info, but connection successful', error);
+        logger.warn('Could not fetch user info, but connection successful', error);
       }
 
       // Store connection status with tokens
@@ -762,10 +764,10 @@ export class CalendarAPI {
       // Save the client ID used (for token refresh)
       await this.saveCredentials('outlook', { clientId });
 
-      console.log('PingMeet: Connected to Outlook Calendar (Simple Mode)', userEmail);
+      logger.debug('Connected to Outlook Calendar (Simple Mode)', userEmail);
       return { success: true, email: userEmail };
     } catch (error) {
-      console.error('PingMeet: Outlook Calendar simple connection failed', error);
+      logger.error('Outlook Calendar simple connection failed', error);
       return { success: false, error: error.message };
     }
   }
@@ -790,7 +792,7 @@ export class CalendarAPI {
     let lastError;
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        console.log(`PingMeet: Outlook token refresh attempt ${attempt}/${retries}`);
+        logger.debug(`Outlook token refresh attempt ${attempt}/${retries}`);
 
         const response = await fetch(this.MS_TOKEN_URL, {
           method: 'POST',
@@ -811,7 +813,7 @@ export class CalendarAPI {
         return response.json();
       } catch (error) {
         lastError = error;
-        console.warn(`PingMeet: Outlook token refresh attempt ${attempt} failed:`, error.message);
+        logger.warn(`Outlook token refresh attempt ${attempt} failed:`, error.message);
 
         // Don't retry on auth errors (invalid_grant, etc.)
         if (error.message.includes('invalid_grant') || 
@@ -838,10 +840,10 @@ export class CalendarAPI {
       // Clear connection status but keep credentials
       await this.saveConnection('outlook', { connected: false });
 
-      console.log('PingMeet: Disconnected from Outlook Calendar');
+      logger.debug('Disconnected from Outlook Calendar');
       return { success: true };
     } catch (error) {
-      console.error('PingMeet: Error disconnecting from Outlook', error);
+      logger.error('Error disconnecting from Outlook', error);
       return { success: false, error: error.message };
     }
   }
@@ -865,7 +867,7 @@ export class CalendarAPI {
    * Get valid Outlook access token (auto-refresh if expired using refresh token)
    */
   static async getValidOutlookToken() {
-    const connection = await chrome.storage.local.get(this.STORAGE_KEY);
+    const connection = await this.getConnections();
     const outlookConnection = connection[this.STORAGE_KEY]?.outlook;
 
     if (!outlookConnection?.connected || !outlookConnection?.accessToken) {
@@ -874,7 +876,7 @@ export class CalendarAPI {
 
     // Check if token is expired (with buffer to refresh proactively)
     if (outlookConnection.expiresAt && Date.now() > outlookConnection.expiresAt - this.TOKEN_REFRESH_BUFFER_MS) {
-      console.log('PingMeet: Outlook token expired or expiring soon, attempting auto-refresh...');
+      logger.debug('Outlook token expired or expiring soon, attempting auto-refresh...');
 
       // Try to refresh using refresh token
       if (outlookConnection.refreshToken) {
@@ -905,10 +907,10 @@ export class CalendarAPI {
           // Clear any previous failure tracking on success
           await this.clearFailureTracking('outlook');
 
-          console.log('PingMeet: Outlook token refreshed successfully');
+          logger.debug('Outlook token refreshed successfully');
           return tokens.access_token;
         } catch (error) {
-          console.error('PingMeet: Outlook token refresh failed', error);
+          logger.error('Outlook token refresh failed', error);
 
           // Use grace period for all errors except fatal auth errors
           // This prevents premature disconnections from transient issues
@@ -916,25 +918,25 @@ export class CalendarAPI {
             const { shouldDisconnect, failureCount } = await this.trackFailure('outlook');
 
             if (shouldDisconnect) {
-              console.log('PingMeet: Failures persisted beyond grace period, disconnecting Outlook');
+              logger.debug('Failures persisted beyond grace period, disconnecting Outlook');
               await this.saveConnection('outlook', { connected: false });
               this.notifyTokenExpired('Outlook Calendar', outlookConnection.authMode);
             } else {
-              console.log(`PingMeet: Transient error for Outlook (attempt ${failureCount}), will retry on next sync`);
+              logger.debug(`Transient error for Outlook (attempt ${failureCount}), will retry on next sync`);
             }
             return null;
           }
 
           // Only for truly fatal auth errors (invalid_grant, revoked, etc.), disconnect immediately
-          console.log('PingMeet: Fatal auth error detected, disconnecting Outlook immediately');
-          await this.saveConnection('outlook', { connected: false });
+          logger.debug('Fatal auth error detected, disconnecting Outlook immediately');
+          await this.saveConnection('outlook', { connected: false, needsReauth: true, lastAuthError: error?.message });
           this.notifyTokenExpired('Outlook Calendar', outlookConnection.authMode);
           return null;
         }
       } else {
         // No refresh token available - legacy connection
-        console.log('PingMeet: No refresh token, need re-authentication');
-        await this.saveConnection('outlook', { connected: false });
+        logger.debug('No refresh token, need re-authentication');
+        await this.saveConnection('outlook', { connected: false, needsReauth: true, lastAuthError: 'no_refresh_token' });
         this.notifyTokenExpired('Outlook Calendar', outlookConnection.authMode);
         return null;
       }
@@ -976,7 +978,7 @@ export class CalendarAPI {
       if (!response.ok) {
         if (response.status === 401) {
           // Token expired - disconnect and notify user
-          const connection = await chrome.storage.local.get(this.STORAGE_KEY);
+          const connection = await this.getConnections();
           const authMode = connection[this.STORAGE_KEY]?.outlook?.authMode;
           await this.saveConnection('outlook', { connected: false });
           this.notifyTokenExpired('Outlook Calendar', authMode);
@@ -984,17 +986,17 @@ export class CalendarAPI {
         }
         // Get error details
         const errorText = await response.text();
-        console.error('PingMeet: Outlook API error response:', errorText);
+        logger.error('Outlook API error response:', errorText);
         throw new Error(`API error: ${response.status}`);
       }
 
       const data = await response.json();
       const events = this.parseOutlookEvents(data.value || []);
 
-      console.log(`PingMeet: Fetched ${events.length} events from Outlook Calendar API`);
+      logger.debug(`Fetched ${events.length} events from Outlook Calendar API`);
       return { success: true, events };
     } catch (error) {
-      console.error('PingMeet: Error fetching Outlook events', error);
+      logger.error('Error fetching Outlook events', error);
       return { success: false, error: error.message, events: [] };
     }
   }
@@ -1079,7 +1081,7 @@ export class CalendarAPI {
    * Get valid access token (auto-refresh if expired using refresh token or chrome.identity)
    */
   static async getValidToken() {
-    const connection = await chrome.storage.local.get(this.STORAGE_KEY);
+    const connection = await this.getConnections();
     const googleConnection = connection[this.STORAGE_KEY]?.google;
 
     if (!googleConnection?.connected || !googleConnection?.accessToken) {
@@ -1088,7 +1090,7 @@ export class CalendarAPI {
 
     // Check if token is expired (with buffer to refresh proactively)
     if (googleConnection.expiresAt && Date.now() > googleConnection.expiresAt - this.TOKEN_REFRESH_BUFFER_MS) {
-      console.log('PingMeet: Google token expired or expiring soon, attempting auto-refresh...');
+      logger.debug('Google token expired or expiring soon, attempting auto-refresh...');
 
       // Simple mode: Use chrome.identity to refresh with retry
       if (googleConnection.authMode === 'simple') {
@@ -1097,7 +1099,7 @@ export class CalendarAPI {
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
           try {
-            console.log(`PingMeet: Simple mode token refresh attempt ${attempt}/${maxRetries}`);
+            logger.debug(`Simple mode token refresh attempt ${attempt}/${maxRetries}`);
 
             // Remove cached token first
             await new Promise((resolve) => {
@@ -1129,11 +1131,11 @@ export class CalendarAPI {
             // Clear any previous failure tracking on success
             await this.clearFailureTracking('google');
 
-            console.log('PingMeet: Google token refreshed successfully (Simple Mode)');
+            logger.debug('Google token refreshed successfully (Simple Mode)');
             return newToken;
           } catch (error) {
             lastError = error;
-            console.warn(`PingMeet: Simple mode token refresh attempt ${attempt} failed:`, error.message);
+            logger.warn(`Simple mode token refresh attempt ${attempt} failed:`, error.message);
 
             // Only stop retrying on truly fatal auth errors (invalid_grant, revoked, etc.)
             // Don't stop on transient errors that may contain "user" or other generic words
@@ -1149,7 +1151,7 @@ export class CalendarAPI {
         }
 
         // Handle failure after all retries exhausted
-        console.error('PingMeet: Simple mode token refresh failed after retries', lastError);
+        logger.error('Simple mode token refresh failed after retries', lastError);
 
         // Use grace period for all errors (network or otherwise) except fatal auth errors
         // This prevents premature disconnections from transient issues
@@ -1157,18 +1159,18 @@ export class CalendarAPI {
           const { shouldDisconnect, failureCount } = await this.trackFailure('google');
 
           if (shouldDisconnect) {
-            console.log('PingMeet: Failures persisted beyond grace period, disconnecting Google');
+            logger.debug('Failures persisted beyond grace period, disconnecting Google');
             await this.saveConnection('google', { connected: false });
             this.notifyTokenExpired('Google Calendar', 'simple');
           } else {
-            console.log(`PingMeet: Transient error for Google Simple Mode (attempt ${failureCount}), will retry on next sync`);
+            logger.debug(`Transient error for Google Simple Mode (attempt ${failureCount}), will retry on next sync`);
           }
           return null;
         }
 
         // Only for truly fatal auth errors (invalid_grant, revoked, etc.), disconnect immediately
-        console.log('PingMeet: Fatal auth error detected, disconnecting Google immediately');
-        await this.saveConnection('google', { connected: false });
+        logger.debug('Fatal auth error detected, disconnecting Google immediately');
+        await this.saveConnection('google', { connected: false, needsReauth: true, lastAuthError: lastError?.message });
         this.notifyTokenExpired('Google Calendar', 'simple');
         return null;
       }
@@ -1201,10 +1203,10 @@ export class CalendarAPI {
           // Clear any previous failure tracking on success
           await this.clearFailureTracking('google');
 
-          console.log('PingMeet: Google token refreshed successfully (Advanced Mode)');
+          logger.debug('Google token refreshed successfully (Advanced Mode)');
           return tokens.access_token;
         } catch (error) {
-          console.error('PingMeet: Advanced mode token refresh failed', error);
+          logger.error('Advanced mode token refresh failed', error);
 
           // Use grace period for all errors except fatal auth errors
           // This prevents premature disconnections from transient issues
@@ -1212,25 +1214,25 @@ export class CalendarAPI {
             const { shouldDisconnect, failureCount } = await this.trackFailure('google');
 
             if (shouldDisconnect) {
-              console.log('PingMeet: Failures persisted beyond grace period, disconnecting Google');
+              logger.debug('Failures persisted beyond grace period, disconnecting Google');
               await this.saveConnection('google', { connected: false });
               this.notifyTokenExpired('Google Calendar', 'advanced');
             } else {
-              console.log(`PingMeet: Transient error for Google Advanced mode (attempt ${failureCount}), will retry on next sync`);
+              logger.debug(`Transient error for Google Advanced mode (attempt ${failureCount}), will retry on next sync`);
             }
             return null;
           }
 
           // Only for truly fatal auth errors (invalid_grant, revoked, etc.), disconnect immediately
-          console.log('PingMeet: Fatal auth error detected, disconnecting Google immediately');
-          await this.saveConnection('google', { connected: false });
+          logger.debug('Fatal auth error detected, disconnecting Google immediately');
+          await this.saveConnection('google', { connected: false, needsReauth: true, lastAuthError: error?.message });
           this.notifyTokenExpired('Google Calendar', 'advanced');
           return null;
         }
       } else {
         // No refresh token available - legacy connection
-        console.log('PingMeet: No refresh token, need re-authentication');
-        await this.saveConnection('google', { connected: false });
+        logger.debug('No refresh token, need re-authentication');
+        await this.saveConnection('google', { connected: false, needsReauth: true, lastAuthError: 'no_refresh_token' });
         this.notifyTokenExpired('Google Calendar');
         return null;
       }
@@ -1250,7 +1252,7 @@ export class CalendarAPI {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('PingMeet: User info fetch failed', response.status, errorText);
+        logger.error('User info fetch failed', response.status, errorText);
         throw new Error(`Failed to fetch user info: ${response.status} - ${errorText}`);
       }
 
@@ -1258,7 +1260,7 @@ export class CalendarAPI {
     } catch (error) {
       // Handle network errors separately
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        console.error('PingMeet: Network error fetching user info', error);
+        logger.error('Network error fetching user info', error);
         throw new Error('Network error: Unable to connect to Google. Please check your internet connection.');
       }
       throw error;
@@ -1266,18 +1268,62 @@ export class CalendarAPI {
   }
 
   /**
-   * Fetch calendar events from Google Calendar API
-   * Returns all events for the entire day
+   * List the user's Google Calendars (id, summary, primary, selected).
+   * Used by the popup to render multi-calendar checkboxes.
+   */
+  static async listGoogleCalendars() {
+    try {
+      const token = await this.getValidToken();
+      if (!token) return { success: false, error: 'Not authenticated', calendars: [] };
+
+      const response = await fetch(`${this.GOOGLE_CALENDAR_API}/users/me/calendarList`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        return { success: false, error: `API error: ${response.status}`, calendars: [] };
+      }
+      const data = await response.json();
+      const calendars = (data.items || []).map(c => ({
+        id: c.id,
+        summary: c.summary,
+        primary: !!c.primary,
+        backgroundColor: c.backgroundColor,
+        accessRole: c.accessRole
+      }));
+      return { success: true, calendars };
+    } catch (error) {
+      logger.error('listGoogleCalendars failed', error);
+      return { success: false, error: error.message, calendars: [] };
+    }
+  }
+
+  /**
+   * Get the list of Google calendar IDs the user has enabled. If unset,
+   * defaults to ['primary'] for backwards compatibility.
+   */
+  static async getEnabledGoogleCalendars() {
+    const data = await chrome.storage.local.get('enabledCalendars');
+    const enabled = data.enabledCalendars?.google;
+    return Array.isArray(enabled) && enabled.length ? enabled : ['primary'];
+  }
+
+  static async setEnabledGoogleCalendars(ids) {
+    const data = await chrome.storage.local.get('enabledCalendars');
+    const all = data.enabledCalendars || {};
+    all.google = ids;
+    await chrome.storage.local.set({ enabledCalendars: all });
+  }
+
+  /**
+   * Fetch events from Google Calendar API across all enabled calendars.
    */
   static async fetchGoogleEvents() {
     try {
       const token = await this.getValidToken();
-
       if (!token) {
         return { success: false, error: 'Not authenticated', events: [] };
       }
 
-      // Fetch all events for the entire day (not just next 24 hours)
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
       const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
@@ -1290,32 +1336,40 @@ export class CalendarAPI {
         maxResults: '100'
       });
 
-      const response = await fetch(
-        `${this.GOOGLE_CALENDAR_API}/calendars/primary/events?${params}`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+      const calendarIds = await this.getEnabledGoogleCalendars();
+      const allEvents = [];
+      let tokenExpired = false;
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          // Token expired - disconnect and notify user
-          const connection = await chrome.storage.local.get(this.STORAGE_KEY);
-          const authMode = connection[this.STORAGE_KEY]?.google?.authMode;
-          await this.saveConnection('google', { connected: false });
-          this.notifyTokenExpired('Google Calendar', authMode);
-          return { success: false, error: 'Token expired. Please reconnect in Settings.', events: [] };
+      for (const calId of calendarIds) {
+        const response = await fetch(
+          `${this.GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calId)}/events?${params}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!response.ok) {
+          if (response.status === 401) { tokenExpired = true; break; }
+          if (response.status === 404) {
+            // Calendar removed or no longer accessible — skip silently.
+            logger.warn(`Calendar ${calId} not found, skipping`);
+            continue;
+          }
+          throw new Error(`API error: ${response.status}`);
         }
-        throw new Error(`API error: ${response.status}`);
+        const data = await response.json();
+        allEvents.push(...this.parseGoogleEvents(data.items || []));
       }
 
-      const data = await response.json();
-      const events = this.parseGoogleEvents(data.items || []);
+      if (tokenExpired) {
+        const connection = await this.getConnections();
+        const authMode = connection[this.STORAGE_KEY]?.google?.authMode;
+        await this.saveConnection('google', { connected: false });
+        this.notifyTokenExpired('Google Calendar', authMode);
+        return { success: false, error: 'Token expired. Please reconnect in Settings.', events: [] };
+      }
 
-      console.log(`PingMeet: Fetched ${events.length} events from Google Calendar API`);
-      return { success: true, events };
+      logger.debug(`Fetched ${allEvents.length} events across ${calendarIds.length} Google calendar(s)`);
+      return { success: true, events: allEvents };
     } catch (error) {
-      console.error('PingMeet: Error fetching Google events', error);
+      logger.error('Error fetching Google events', error);
       return { success: false, error: error.message, events: [] };
     }
   }
@@ -1326,6 +1380,12 @@ export class CalendarAPI {
   static parseGoogleEvents(items) {
     return items
       .filter(item => item.start?.dateTime) // Only timed events, not all-day
+      .filter(item => {
+        // Skip declined events — user explicitly said no.
+        const selfAttendee = (item.attendees || []).find(a => a.self);
+        if (selfAttendee?.responseStatus === 'declined') return false;
+        return true;
+      })
       .map(item => ({
         id: item.id,
         title: item.summary || 'Untitled Meeting',
@@ -1348,6 +1408,10 @@ export class CalendarAPI {
         conferenceData: item.conferenceData,
         // Extract dial-in info from conference data
         dialIn: this.extractDialInInfo(item.conferenceData),
+        // Google's classification: 'default' | 'outOfOffice' | 'focusTime' |
+        // 'workingLocation' | 'fromGmail'. Used downstream for OOO/focus
+        // suppression of reminders.
+        eventType: item.eventType || 'default',
         // Source marker
         source: 'google-api'
       }));
@@ -1406,15 +1470,75 @@ export class CalendarAPI {
   }
 
   /**
-   * Save connection status
+   * Session storage key prefix for short-lived access tokens.
+   * Why: chrome.storage.session is in-memory only — wiped on browser close,
+   * never persisted to disk. Refresh tokens stay in local (they survive
+   * restart and are needed to silently re-auth) but access tokens have
+   * minutes-of-lifetime so the session lifetime is fine.
+   */
+  static SESSION_TOKEN_PREFIX = 'session_access_token_';
+
+  /**
+   * Save connection status. Splits access tokens off into chrome.storage.session
+   * so they aren't persisted to disk. Refresh tokens + metadata stay in local.
    */
   static async saveConnection(provider, data) {
+    // Read directly from local — we don't want to merge session tokens here,
+    // since the merged blob would then get re-persisted to local below.
     const current = await chrome.storage.local.get(this.STORAGE_KEY);
     const connections = current[this.STORAGE_KEY] || {};
 
-    connections[provider] = data;
+    // Extract access token to session storage (in-memory only, wiped on browser close)
+    const sessionKey = `${this.SESSION_TOKEN_PREFIX}${provider}`;
+    if (data && typeof data === 'object') {
+      const { accessToken, ...rest } = data;
+      connections[provider] = rest;
+
+      try {
+        if (accessToken) {
+          await chrome.storage.session.set({ [sessionKey]: accessToken });
+        } else {
+          // Full-replace with no accessToken (e.g. disconnect) — clear session entry too
+          await chrome.storage.session.remove(sessionKey);
+        }
+      } catch {
+        // chrome.storage.session unavailable in some contexts (older Chrome) —
+        // fall back to keeping the access token in the local connection blob.
+        connections[provider] = data;
+      }
+    } else {
+      connections[provider] = data;
+    }
 
     await chrome.storage.local.set({ [this.STORAGE_KEY]: connections });
+  }
+
+  /**
+   * Read merged connection state for both providers. Combines the persisted
+   * metadata in chrome.storage.local with the in-memory access tokens in
+   * chrome.storage.session, returning the same shape callers expect.
+   */
+  static async getConnections() {
+    const local = await chrome.storage.local.get(this.STORAGE_KEY);
+    const connections = local[this.STORAGE_KEY] || {};
+
+    try {
+      const sessionKeys = ['google', 'outlook'].map(
+        p => `${this.SESSION_TOKEN_PREFIX}${p}`
+      );
+      const session = await chrome.storage.session.get(sessionKeys);
+      for (const provider of ['google', 'outlook']) {
+        const sessionKey = `${this.SESSION_TOKEN_PREFIX}${provider}`;
+        const token = session[sessionKey];
+        if (token && connections[provider]) {
+          connections[provider] = { ...connections[provider], accessToken: token };
+        }
+      }
+    } catch {
+      // session unavailable — return whatever is in local (back-compat path)
+    }
+
+    return { [this.STORAGE_KEY]: connections };
   }
 
   /**
@@ -1487,7 +1611,7 @@ export class CalendarAPI {
       }
 
       const created = await response.json();
-      console.log('PingMeet: Created Google Calendar event', created.id);
+      logger.debug('Created Google Calendar event', created.id);
 
       return {
         success: true,
@@ -1498,7 +1622,7 @@ export class CalendarAPI {
         }
       };
     } catch (error) {
-      console.error('PingMeet: Error creating Google event', error);
+      logger.error('Error creating Google event', error);
       return { success: false, error: error.message };
     }
   }
@@ -1559,7 +1683,7 @@ export class CalendarAPI {
       }
 
       const created = await response.json();
-      console.log('PingMeet: Created Outlook event', created.id);
+      logger.debug('Created Outlook event', created.id);
 
       return {
         success: true,
@@ -1570,7 +1694,7 @@ export class CalendarAPI {
         }
       };
     } catch (error) {
-      console.error('PingMeet: Error creating Outlook event', error);
+      logger.error('Error creating Outlook event', error);
       return { success: false, error: error.message };
     }
   }
@@ -1636,10 +1760,10 @@ export class CalendarAPI {
         return { success: false, error: error.error?.message || 'Failed to decline event' };
       }
 
-      console.log('PingMeet: Declined Google Calendar event', cleanEventId);
+      logger.debug('Declined Google Calendar event', cleanEventId);
       return { success: true };
     } catch (error) {
-      console.error('PingMeet: Error declining Google event', error);
+      logger.error('Error declining Google event', error);
       return { success: false, error: error.message };
     }
   }
@@ -1677,10 +1801,10 @@ export class CalendarAPI {
         return { success: false, error: error.error?.message || 'Failed to decline event' };
       }
 
-      console.log('PingMeet: Declined Outlook event', cleanEventId);
+      logger.debug('Declined Outlook event', cleanEventId);
       return { success: true };
     } catch (error) {
-      console.error('PingMeet: Error declining Outlook event', error);
+      logger.error('Error declining Outlook event', error);
       return { success: false, error: error.message };
     }
   }

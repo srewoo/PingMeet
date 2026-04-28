@@ -5,6 +5,7 @@
  */
 
 import { DurationTracker } from '../utils/duration-tracker.js';
+import { logger } from '../utils/logger.js';
 
 class ReminderWindow {
   constructor() {
@@ -37,7 +38,7 @@ class ReminderWindow {
 
         this.endTime = new Date(this.event.startTime);
 
-        console.log('PingMeet: Loaded event data:', this.event);
+        logger.debug('Loaded event data:', this.event);
 
         // Set event title
         const titleElement = document.getElementById('eventTitle');
@@ -61,7 +62,7 @@ class ReminderWindow {
           document.getElementById('joinBtn').style.display = 'none';
         }
       } catch (error) {
-        console.error('PingMeet: Error parsing event data', error);
+        logger.error('Error parsing event data', error);
 
         // Show error message to user
         const titleElement = document.getElementById('eventTitle');
@@ -202,10 +203,10 @@ class ReminderWindow {
     // Show or hide the entire event-meta section
     if (hasAnyData) {
       eventMeta.classList.remove('hidden');
-      console.log('PingMeet: Enhanced event details displayed');
+      logger.debug('Enhanced event details displayed');
     } else {
       eventMeta.classList.add('hidden');
-      console.log('PingMeet: No enhanced event details to display');
+      logger.debug('No enhanced event details to display');
     }
   }
 
@@ -459,9 +460,9 @@ class ReminderWindow {
         element.classList.remove('copy-flash');
       }, 1500);
 
-      console.log('PingMeet: Copied to clipboard:', text);
+      logger.debug('Copied to clipboard:', text);
     } catch (error) {
-      console.error('PingMeet: Copy failed', error);
+      logger.error('Copy failed', error);
     }
   }
 
@@ -474,6 +475,7 @@ class ReminderWindow {
     document.getElementById('snooze30s').addEventListener('click', () => this.snooze(0.5));
     document.getElementById('snooze1m').addEventListener('click', () => this.snooze(1));
     document.getElementById('snooze5m').addEventListener('click', () => this.snooze(5));
+    document.getElementById('snooze10m')?.addEventListener('click', () => this.snooze(10));
     document.getElementById('declineBtn').addEventListener('click', () => this.decline());
     document.getElementById('dismissBtn').addEventListener('click', () => this.dismiss());
     document.getElementById('closeBtn').addEventListener('click', () => this.dismiss());
@@ -564,9 +566,9 @@ class ReminderWindow {
         this.showSuccessFeedback('Opening Gmail compose...');
       }
 
-      console.log('PingMeet: Opened email compose for running late message');
+      logger.debug('Opened email compose for running late message');
     } catch (error) {
-      console.error('PingMeet: Error opening email compose', error);
+      logger.error('Error opening email compose', error);
       // Fallback to mailto
       this.openMailtoLink(recipients, subject, body);
     }
@@ -597,9 +599,9 @@ class ReminderWindow {
     try {
       await navigator.clipboard.writeText(message);
       this.showSuccessFeedback('Copied to Clipboard');
-      console.log('PingMeet: Running late message copied to clipboard');
+      logger.debug('Running late message copied to clipboard');
     } catch (error) {
-      console.error('PingMeet: Error copying to clipboard', error);
+      logger.error('Error copying to clipboard', error);
       alert(message);
     }
   }
@@ -658,28 +660,93 @@ class ReminderWindow {
    * Join the meeting
    */
   async join() {
-    if (this.event?.meetingLink) {
-      try {
-        // Start tracking when user joins
-        await DurationTracker.startTracking(this.event);
+    // 1. Determine the join URL. Prefer event.meetingLink; fall back to scanning
+    //    the event description for a recognised provider URL.
+    let url = this.event?.meetingLink;
+    if (!url && this.event?.description) {
+      url = this.extractMeetingLinkFromText(this.event.description);
+    }
 
-        // Open the meeting tab
-        const tab = await chrome.tabs.create({ url: this.event.meetingLink, active: true });
+    if (!url) {
+      logger.warn('No meeting link to join');
+      this.dismiss();
+      return;
+    }
 
-        // Tell service worker to track this tab for duration
-        await chrome.runtime.sendMessage({
-          type: 'MEETING_TAB_OPENED',
-          tabId: tab.id
-        });
+    try {
+      await DurationTracker.startTracking(this.event);
 
-        console.log('PingMeet: Opened meeting link and started tracking tab:', tab.id);
-      } catch (error) {
-        console.error('PingMeet: Error opening meeting link', error);
-        // Fallback to window.open
-        window.open(this.event.meetingLink, '_blank');
+      // 2. If the user already has a tab open for this meeting, focus it
+      //    instead of opening a duplicate.
+      const existing = await this.findExistingTab(url);
+      let tab;
+      if (existing) {
+        tab = await chrome.tabs.update(existing.id, { active: true });
+        if (existing.windowId !== undefined) {
+          try { await chrome.windows.update(existing.windowId, { focused: true }); } catch { /* ignore */ }
+        }
+        logger.debug('Focused existing meeting tab:', tab.id);
+      } else {
+        tab = await chrome.tabs.create({ url, active: true });
+        logger.debug('Opened new meeting tab:', tab.id);
       }
+
+      await chrome.runtime.sendMessage({
+        type: 'MEETING_TAB_OPENED',
+        tabId: tab.id
+      });
+    } catch (error) {
+      logger.error('Error opening meeting link', error);
+      window.open(url, '_blank');
     }
     this.dismiss();
+  }
+
+  /**
+   * Find an open tab matching the meeting URL (host + first path segment).
+   */
+  async findExistingTab(url) {
+    try {
+      const tabs = await chrome.tabs.query({});
+      const lower = url.toLowerCase();
+      const exact = tabs.find(t => t.url && t.url.toLowerCase().startsWith(lower));
+      if (exact) return exact;
+
+      const m = lower.match(/^https?:\/\/([^/]+)\/(.+)$/);
+      if (!m) return null;
+      const host = m[1];
+      const key = m[2].split(/[?#]/)[0].split('/').filter(Boolean)[0] || '';
+      if (key.length < 3) return null;
+      return tabs.find(t => {
+        if (!t.url) return null;
+        const u = t.url.toLowerCase();
+        return u.includes(host) && u.includes(key);
+      }) || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Extract a meeting link from free-form text using known provider patterns.
+   * Mirrors constants.js MEETING_LINK_PATTERNS.
+   */
+  extractMeetingLinkFromText(text) {
+    if (!text) return null;
+    const patterns = [
+      /https?:\/\/meet\.google\.com\/[a-z0-9-]+/i,
+      /https?:\/\/([\w-]+\.)?zoom\.(us|com)\/(j|w|wc|s)\/\d+[^\s"<>]*/i,
+      /https?:\/\/teams\.microsoft\.com\/l\/(meetup-join|meeting)[^\s"<>]+/i,
+      /https?:\/\/([\w-]+\.)?webex\.com\/(meet|join)\/[^\s"<>]+/i,
+      /https?:\/\/(www\.)?gotomeeting\.com\/join\/\d+/i,
+      /https?:\/\/meet\.jit\.si\/[^\s"<>]+/i,
+      /https?:\/\/bluejeans\.com\/\d+/i,
+    ];
+    for (const re of patterns) {
+      const m = text.match(re);
+      if (m) return m[0];
+    }
+    return null;
   }
 
   /**
@@ -695,9 +762,9 @@ class ReminderWindow {
         minutes: minutes,
       });
       const label = minutes < 1 ? `${minutes * 60} seconds` : `${minutes} minute${minutes > 1 ? 's' : ''}`;
-      console.log(`PingMeet: Snoozed for ${label}`);
+      logger.debug(`Snoozed for ${label}`);
     } catch (error) {
-      console.error('PingMeet: Error snoozing', error);
+      logger.error('Error snoozing', error);
     }
     this.dismiss();
   }
@@ -728,15 +795,15 @@ class ReminderWindow {
         const message = `I won't be able to attend "${this.event.title}". Apologies for any inconvenience.`;
         try {
           await navigator.clipboard.writeText(message);
-          console.log('PingMeet: Decline message copied to clipboard');
+          logger.debug('Decline message copied to clipboard');
         } catch (error) {
-          console.warn('PingMeet: Could not copy to clipboard', error);
+          logger.warn('Could not copy to clipboard', error);
         }
       }
 
-      console.log('PingMeet: Meeting declined');
+      logger.debug('Meeting declined');
     } catch (error) {
-      console.error('PingMeet: Error declining meeting', error);
+      logger.error('Error declining meeting', error);
     }
     this.dismiss();
   }

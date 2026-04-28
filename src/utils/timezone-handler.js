@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 /**
  * Timezone Handler - Manages timezone conversions for calendar events
  */
@@ -26,7 +27,7 @@ export class TimezoneHandler {
 
       return date;
     } catch (error) {
-      console.error('PingMeet: Error parsing datetime', error);
+      logger.error('Error parsing datetime', error);
       return new Date();
     }
   }
@@ -67,7 +68,7 @@ export class TimezoneHandler {
 
       return localDate;
     } catch (error) {
-      console.warn('PingMeet: Timezone conversion failed, using original date', error);
+      logger.warn('Timezone conversion failed, using original date', error);
       return date;
     }
   }
@@ -208,13 +209,13 @@ export class TimezoneHandler {
 
       // Check if valid
       if (isNaN(date.getTime())) {
-        console.warn('PingMeet: Invalid datetime string', isoString);
+        logger.warn('Invalid datetime string', isoString);
         return new Date();
       }
 
       return date;
     } catch (error) {
-      console.error('PingMeet: Error normalizing ISO string', error);
+      logger.error('Error normalizing ISO string', error);
       return new Date();
     }
   }

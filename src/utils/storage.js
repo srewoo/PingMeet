@@ -3,6 +3,7 @@
  */
 
 import { STORAGE_KEYS, DEFAULT_SETTINGS } from './constants.js';
+import { logger } from '../utils/logger.js';
 
 export class StorageManager {
   // Flag for sync storage availability
@@ -19,7 +20,7 @@ export class StorageManager {
         return result[STORAGE_KEYS.SETTINGS] || DEFAULT_SETTINGS;
       }
     } catch (error) {
-      console.warn('PingMeet: Sync storage unavailable, falling back to local storage', error);
+      logger.warn('Sync storage unavailable, falling back to local storage', error);
       this.useSyncStorage = false;
     }
 
@@ -41,7 +42,7 @@ export class StorageManager {
         return;
       }
     } catch (error) {
-      console.warn('PingMeet: Sync storage unavailable, falling back to local storage', error);
+      logger.warn('Sync storage unavailable, falling back to local storage', error);
       this.useSyncStorage = false;
     }
 

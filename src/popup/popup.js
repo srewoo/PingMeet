@@ -4,23 +4,26 @@
  */
 
 import { StorageManager } from '../utils/storage.js';
+import { logger } from '../utils/logger.js';
 import { DurationTracker } from '../utils/duration-tracker.js';
 import { ReportGenerator } from '../utils/report-generator.js';
 import { CalendarAPI } from '../utils/calendar-api.js';
 import { AIInsights } from '../utils/ai-insights.js';
+import { SettingsView } from './settings-view.js';
 
 class PopupUI {
   constructor() {
     this.events = [];
     this.settings = null;
     this.currentFilter = 'all'; // Track active calendar filter
+    this.settingsView = new SettingsView();
   }
 
   /**
    * Initialize the popup
    */
   async init() {
-    console.log('PingMeet: Popup initialized');
+    logger.debug('Popup initialized');
 
     // Load data
     await this.loadSettings();
@@ -37,11 +40,13 @@ class PopupUI {
     await this.updateDurationStats();
     await this.updateCalendarConnectionStatus();
     await this.updateAIStatus();
+    await this.updateDndBar();
 
     // Auto-refresh every 30 seconds
     setInterval(() => {
       this.loadEvents();
       this.updateDurationStats();
+      this.updateDndBar();
     }, 30000);
   }
 
@@ -54,7 +59,7 @@ class PopupUI {
       document.getElementById('todayDuration').textContent = stats.today.formatted;
       document.getElementById('weekDuration').textContent = stats.week.formatted;
     } catch (error) {
-      console.error('PingMeet: Error updating duration stats', error);
+      logger.error('Error updating duration stats', error);
     }
   }
 
@@ -67,7 +72,7 @@ class PopupUI {
     if (element) {
       element.addEventListener(event, handler);
     } else {
-      console.warn(`PingMeet: Element '${elementId}' not found`);
+      logger.warn(`Element '${elementId}' not found`);
     }
   }
 
@@ -142,6 +147,198 @@ class PopupUI {
         await this.handleDeclineMeeting(eventId, source);
       }
     });
+
+    // DND quick-control buttons
+    document.querySelectorAll('.dnd-btn[data-dnd-minutes]').forEach(btn => {
+      btn.addEventListener('click', () => this.handleDndSet(btn.dataset.dndMinutes));
+    });
+    this.safeAddEventListener('dndOffBtn', 'click', () => this.handleDndSet('off'));
+
+    // Sync now button
+    this.safeAddEventListener('syncNowBtn', 'click', () => this.handleSyncNow());
+
+    // Snooze all button
+    this.safeAddEventListener('snoozeAllBtn', 'click', () => this.handleSnoozeAll(15));
+
+    // Calendar list refresh
+    this.safeAddEventListener('googleCalRefreshBtn', 'click', () => this.renderGoogleCalendarList(true));
+  }
+
+  /**
+   * Render the Google calendar selection list. When `forceFetch` is true,
+   * we ignore any cached list and re-fetch from Google.
+   */
+  async renderGoogleCalendarList(forceFetch = false) {
+    const items = document.getElementById('googleCalendarItems');
+    if (!items) return;
+    items.innerHTML = '<div class="calendar-list-empty">Loading…</div>';
+
+    let list;
+    if (!forceFetch) {
+      const cached = await chrome.storage.local.get('googleCalendarsCache');
+      const c = cached.googleCalendarsCache;
+      if (c && Date.now() - c.fetchedAt < 24 * 60 * 60 * 1000) {
+        list = c.calendars;
+      }
+    }
+    if (!list) {
+      const result = await CalendarAPI.listGoogleCalendars();
+      if (!result.success) {
+        // Most common failure: insufficient OAuth scope (403). Don't shout —
+        // just hide the section. Sync continues working on the primary calendar.
+        const err = String(result.error || '');
+        const wrapper = document.getElementById('googleCalendarList');
+        if (/403/.test(err)) {
+          if (wrapper) {
+            items.innerHTML = `
+              <div class="calendar-list-empty">
+                Multi-calendar selection unavailable.
+                <span class="setting-hint">Reconnect Google to pick which calendars sync. Currently using your primary calendar.</span>
+              </div>`;
+          }
+        } else {
+          items.innerHTML = `<div class="calendar-list-empty">Couldn't load calendars (${this.escapeHtml(err)})</div>`;
+        }
+        return;
+      }
+      list = result.calendars;
+      await chrome.storage.local.set({
+        googleCalendarsCache: { calendars: list, fetchedAt: Date.now() }
+      });
+    }
+
+    const enabled = await CalendarAPI.getEnabledGoogleCalendars();
+    const enabledSet = new Set(enabled);
+
+    // Sort: primary first, then alphabetical
+    list.sort((a, b) => {
+      if (a.primary && !b.primary) return -1;
+      if (b.primary && !a.primary) return 1;
+      return (a.summary || '').localeCompare(b.summary || '');
+    });
+
+    items.innerHTML = '';
+    for (const cal of list) {
+      const id = cal.primary ? 'primary' : cal.id;
+      const label = document.createElement('label');
+      label.className = 'calendar-list-item';
+      const checked = enabledSet.has(id) ? 'checked' : '';
+      label.innerHTML = `
+        <input type="checkbox" data-cal-id="${this.escapeHtml(id)}" ${checked} />
+        <span class="cal-color" style="background:${this.escapeHtml(cal.backgroundColor || '#888')}"></span>
+        <span class="cal-name">${this.escapeHtml(cal.summary || cal.id)}</span>
+        ${cal.primary ? '<span class="cal-primary">Primary</span>' : ''}
+      `;
+      items.appendChild(label);
+    }
+
+    items.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', async () => {
+        const checked = Array.from(items.querySelectorAll('input[type="checkbox"]:checked'))
+          .map(c => c.dataset.calId);
+        // Always keep at least primary if user unchecks everything.
+        const effective = checked.length > 0 ? checked : ['primary'];
+        await CalendarAPI.setEnabledGoogleCalendars(effective);
+        // Trigger immediate re-sync so UI reflects new selection.
+        await this.handleSyncNow();
+      });
+    });
+  }
+
+  async handleSnoozeAll(minutes = 15) {
+    try {
+      const resp = await chrome.runtime.sendMessage({ type: 'SNOOZE_ALL', minutes });
+      const count = resp?.snoozed || 0;
+      const btn = document.getElementById('snoozeAllBtn');
+      if (btn) {
+        const original = btn.textContent;
+        btn.textContent = count > 0 ? `+${minutes}m × ${count}` : 'No alarms';
+        setTimeout(() => { btn.textContent = original; }, 2000);
+      }
+    } catch (error) {
+      logger.error('Snooze all failed', error);
+    }
+  }
+
+  /**
+   * Manual sync trigger. Forces an immediate API + DOM sync regardless of the
+   * 2-min periodic alarm cadence.
+   */
+  async handleSyncNow() {
+    const btn = document.getElementById('syncNowBtn');
+    if (!btn) return;
+    if (btn.classList.contains('spinning')) return; // already in flight
+    btn.classList.add('spinning');
+    btn.disabled = true;
+    try {
+      await this.syncCalendarEvents();
+      // Also poke the service worker to trigger DOM sync (covers Outlook/Google
+      // tabs the user may have open without API auth).
+      try { await chrome.runtime.sendMessage({ type: 'TRIGGER_DOM_SYNC' }); } catch { /* ignore */ }
+      await this.loadEvents();
+      this.renderEvents();
+    } catch (error) {
+      logger.error('Manual sync failed', error);
+    } finally {
+      btn.classList.remove('spinning');
+      btn.disabled = false;
+    }
+  }
+
+  /**
+   * Set settings.dndUntil to suppress non-critical notifications.
+   * @param {string} value - "60" / "240" minutes, "today" (until midnight), or "off"
+   */
+  async handleDndSet(value) {
+    const settings = await StorageManager.getSettings();
+    let dndUntil = 0;
+    if (value === 'off') {
+      dndUntil = 0;
+    } else if (value === 'today') {
+      const endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
+      dndUntil = endOfDay.getTime();
+    } else {
+      const minutes = parseInt(value, 10);
+      if (Number.isFinite(minutes) && minutes > 0) {
+        dndUntil = Date.now() + minutes * 60 * 1000;
+      }
+    }
+    await StorageManager.saveSettings({ ...settings, dndUntil });
+    await this.updateDndBar();
+  }
+
+  /**
+   * Refresh the DND bar's visible state from settings.
+   */
+  async updateDndBar() {
+    const bar = document.getElementById('dndBar');
+    const text = document.getElementById('dndStatusText');
+    const offBtn = document.getElementById('dndOffBtn');
+    if (!bar || !text) return;
+
+    const settings = await StorageManager.getSettings();
+    const dndUntil = settings.dndUntil || 0;
+    const active = dndUntil > Date.now();
+
+    bar.classList.toggle('active', active);
+    if (offBtn) offBtn.classList.toggle('hidden', !active);
+
+    if (active) {
+      const remainingMs = dndUntil - Date.now();
+      const minutes = Math.round(remainingMs / 60000);
+      let label;
+      if (minutes >= 60) {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        label = mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+      } else {
+        label = `${minutes}m`;
+      }
+      text.textContent = `🔕 Quiet for ${label}`;
+    } else {
+      text.textContent = 'Notifications: ON';
+    }
   }
 
   /**
@@ -161,6 +358,7 @@ class PopupUI {
       outlookRedirectUriEl.textContent = redirectUri;
     }
   }
+
 
   /**
    * Toggle Google Calendar setup form visibility
@@ -227,7 +425,7 @@ class PopupUI {
         alert('Failed to connect: ' + result.error);
       }
     } catch (error) {
-      console.error('PingMeet: Outlook connection error', error);
+      logger.error('Outlook connection error', error);
       alert('Connection error: ' + error.message);
     } finally {
       btn.disabled = false;
@@ -258,7 +456,7 @@ class PopupUI {
         alert('Failed to disconnect: ' + result.error);
       }
     } catch (error) {
-      console.error('PingMeet: Outlook disconnect error', error);
+      logger.error('Outlook disconnect error', error);
       alert('Disconnect error: ' + error.message);
     } finally {
       if (btn) {
@@ -293,7 +491,7 @@ class PopupUI {
         }
       }
     } catch (error) {
-      console.error('PingMeet: Simple Outlook connection error', error);
+      logger.error('Simple Outlook connection error', error);
       alert('Connection error: ' + error.message);
     } finally {
       btn.disabled = false;
@@ -372,7 +570,7 @@ class PopupUI {
         alert('Failed to connect: ' + result.error);
       }
     } catch (error) {
-      console.error('PingMeet: Calendar connection error', error);
+      logger.error('Calendar connection error', error);
       alert('Connection error: ' + error.message);
     } finally {
       btn.disabled = false;
@@ -404,7 +602,7 @@ class PopupUI {
         alert('Failed to disconnect: ' + result.error);
       }
     } catch (error) {
-      console.error('PingMeet: Calendar disconnect error', error);
+      logger.error('Calendar disconnect error', error);
       alert('Disconnect error: ' + error.message);
     } finally {
       if (btn) {
@@ -443,7 +641,7 @@ class PopupUI {
         }
       }
     } catch (error) {
-      console.error('PingMeet: Simple Google connection error', error);
+      logger.error('Simple Google connection error', error);
       if (error.message.includes('bad client id') || error.message.includes('OAuth2 not granted') || error.message.includes('OAuth2')) {
         const message = 'One-Click Connect is not configured.\n\n' +
                        'To use this feature, the extension needs a configured OAuth2 client in Google Cloud Console.\n\n' +
@@ -516,7 +714,7 @@ class PopupUI {
         alert('Failed to decline meeting: ' + result.error);
       }
     } catch (error) {
-      console.error('PingMeet: Error declining meeting', error);
+      logger.error('Error declining meeting', error);
       alert('Error declining meeting: ' + error.message);
     }
   }
@@ -592,6 +790,13 @@ class PopupUI {
       googleStatus.textContent = email;
       googleStatus.classList.add('connected');
 
+      // Reveal calendar selection list
+      const listEl = document.getElementById('googleCalendarList');
+      if (listEl) {
+        listEl.classList.remove('hidden');
+        this.renderGoogleCalendarList();
+      }
+
       // Show disconnect button in the appropriate section
       if (authMode === 'simple') {
         // Show simple mode disconnect
@@ -618,12 +823,22 @@ class PopupUI {
       }
     } else {
       googleCard.classList.remove('connected');
-      googleStatus.textContent = 'Not connected';
+      const googleNeedsReauth = !!connection.calendarConnection?.google?.needsReauth;
+      googleStatus.textContent = googleNeedsReauth ? '⚠️ Reconnect required' : 'Not connected';
       googleStatus.classList.remove('connected');
+      googleStatus.classList.toggle('needs-reauth', googleNeedsReauth);
+      googleCard.classList.toggle('needs-reauth', googleNeedsReauth);
+
+      // Hide calendar selection list when disconnected
+      const listEl = document.getElementById('googleCalendarList');
+      if (listEl) listEl.classList.add('hidden');
 
       // Reset simple mode buttons
       if (googleSimpleConnectBtn) {
         googleSimpleConnectBtn.classList.remove('hidden');
+        if (googleNeedsReauth) {
+          googleSimpleConnectBtn.setAttribute('title', 'Your previous session expired or was revoked. Click to reconnect.');
+        }
         googleSimpleConnectBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" style="margin-right: 8px;">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
           <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -692,12 +907,18 @@ class PopupUI {
       }
     } else {
       outlookCard.classList.remove('connected');
-      outlookStatus.textContent = 'Not connected';
+      const outlookNeedsReauth = !!connection.calendarConnection?.outlook?.needsReauth;
+      outlookStatus.textContent = outlookNeedsReauth ? '⚠️ Reconnect required' : 'Not connected';
       outlookStatus.classList.remove('connected');
+      outlookStatus.classList.toggle('needs-reauth', outlookNeedsReauth);
+      outlookCard.classList.toggle('needs-reauth', outlookNeedsReauth);
 
       // Reset simple mode buttons
       if (outlookSimpleConnectBtn) {
         outlookSimpleConnectBtn.classList.remove('hidden');
+        if (outlookNeedsReauth) {
+          outlookSimpleConnectBtn.setAttribute('title', 'Your previous session expired or was revoked. Click to reconnect.');
+        }
         outlookSimpleConnectBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 23 23" style="margin-right: 8px;">
           <path fill="#f25022" d="M0 0h11v11H0z"/>
           <path fill="#00a4ef" d="M0 12h11v11H0z"/>
@@ -725,18 +946,37 @@ class PopupUI {
       }
     }
 
-    // Update status text to show sync method and frequency
+    // Update status text to show sync method and last-synced time
     const statusText = document.getElementById('statusText');
     if (statusText) {
       if (status.google || status.outlook) {
         const connectedServices = [];
         if (status.google) connectedServices.push('Google');
         if (status.outlook) connectedServices.push('Outlook');
-        statusText.textContent = `API Connected (${connectedServices.join(' & ')}) • Syncing every 2 min`;
+        const last = await CalendarAPI.getLastSync();
+        const ago = last ? this.formatRelativeTime(new Date(last)) : 'never';
+        statusText.textContent = `API (${connectedServices.join(' & ')}) • synced ${ago}`;
       } else {
         statusText.textContent = 'Monitoring calendar tabs...';
       }
     }
+  }
+
+  /**
+   * Format an ISO date or Date as a short "X ago" relative string.
+   */
+  formatRelativeTime(date) {
+    const ms = Date.now() - date.getTime();
+    if (ms < 0) return 'just now';
+    const sec = Math.floor(ms / 1000);
+    if (sec < 10) return 'just now';
+    if (sec < 60) return `${sec}s ago`;
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    const day = Math.floor(hr / 24);
+    return `${day}d ago`;
   }
 
   /**
@@ -746,7 +986,7 @@ class PopupUI {
     try {
       await ReportGenerator.openReport();
     } catch (error) {
-      console.error('PingMeet: Error generating report', error);
+      logger.error('Error generating report', error);
       alert('Error generating report. Please try again.');
     }
   }
@@ -969,59 +1209,43 @@ class PopupUI {
   }
 
   /**
-   * Populate settings form
+   * Populate settings form (delegated to SettingsView).
    */
   populateSettings() {
-    document.getElementById('reminderMinutes').value = this.settings.reminderMinutes;
-    document.getElementById('playSound').checked = this.settings.playSound;
-    document.getElementById('voiceReminder').checked = this.settings.voiceReminder || false;
-    document.getElementById('showPopup').checked = this.settings.showPopup;
-    document.getElementById('autoOpen').checked = this.settings.autoOpen;
-    document.getElementById('dailySummary').checked = this.settings.dailySummary !== false;
+    this.settingsView.render(this.settings);
   }
 
   /**
-   * Save settings
+   * Save settings (delegated to SettingsView).
    */
   async saveSettings() {
-    const newSettings = {
-      reminderMinutes: parseInt(document.getElementById('reminderMinutes').value),
-      playSound: document.getElementById('playSound').checked,
-      voiceReminder: document.getElementById('voiceReminder').checked,
-      showPopup: document.getElementById('showPopup').checked,
-      autoOpen: document.getElementById('autoOpen').checked,
-      dailySummary: document.getElementById('dailySummary').checked,
-    };
-
     const saveBtn = document.getElementById('saveBtn');
     const originalText = saveBtn.textContent;
 
-    try {
-      await StorageManager.saveSettings(newSettings);
-      this.settings = newSettings;
+    const result = await this.settingsView.save(this.settings);
 
-      // Visual feedback for success
+    if (result.ok) {
+      this.settings = result.settings;
       saveBtn.textContent = 'Saved';
       saveBtn.style.background = '#28a745';
-
       setTimeout(() => {
         saveBtn.textContent = originalText;
         saveBtn.style.background = '';
         this.showMain();
       }, 1000);
-    } catch (error) {
-      console.error('PingMeet: Failed to save settings', error);
+      return;
+    }
 
-      // Visual feedback for error
-      saveBtn.textContent = 'Error!';
-      saveBtn.style.background = '#dc3545';
+    // Save failed — surface errors and flash the button red.
+    saveBtn.textContent = 'Error';
+    saveBtn.style.background = '#dc3545';
+    setTimeout(() => {
+      saveBtn.textContent = originalText;
+      saveBtn.style.background = '';
+    }, 2000);
 
-      setTimeout(() => {
-        saveBtn.textContent = originalText;
-        saveBtn.style.background = '';
-      }, 2000);
-
-      alert('Failed to save settings: ' + error.message);
+    if (result.errors?.length) {
+      alert('Could not save:\n• ' + result.errors.join('\n• '));
     }
   }
 
@@ -1088,24 +1312,24 @@ class PopupUI {
     // Update model options based on provider
     const modelOptions = {
       openai: [
-        { value: 'gpt-4o', label: 'GPT-4o' },
-        { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-        { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-        { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-        { value: 'o1', label: 'O1 (Reasoning)' },
-        { value: 'o1-mini', label: 'O1 Mini (Reasoning)' }
+        { value: 'gpt-5', label: 'GPT-5' },
+        { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
+        { value: 'gpt-5-nano', label: 'GPT-5 Nano' },
+        { value: 'gpt-4.1', label: 'GPT-4.1' },
+        { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+        { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
+        { value: 'o3', label: 'o3 (Reasoning)' },
+        { value: 'o4-mini', label: 'o4-mini (Reasoning)' }
       ],
       anthropic: [
-        { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4.5' },
-        { value: 'claude-3-5-sonnet-20241022', label: 'Claude Sonnet 3.5' },
-        { value: 'claude-3-5-haiku-20241022', label: 'Claude Haiku 3.5' },
-        { value: 'claude-3-opus-20240229', label: 'Claude Opus 3' }
+        { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' },
+        { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+        { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' }
       ],
       google: [
-        { value: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash' },
-        { value: 'gemini-2.0-pro-exp', label: 'Gemini 2.0 Pro' },
-        { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-        { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' }
+        { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+        { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+        { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' }
       ],
       custom: [
         { value: 'custom-model', label: 'Custom Model (specify in endpoint)' }
@@ -1176,13 +1400,13 @@ class PopupUI {
       // Load saved configuration
       document.getElementById('aiProvider').value = config.provider || 'openai';
       this.onProviderChange(config.provider || 'openai');
-      document.getElementById('aiModel').value = config.model || 'gpt-4o-mini';
+      document.getElementById('aiModel').value = config.model || 'gpt-5-mini';
       document.getElementById('aiTemperature').value = config.temperature || 0.7;
       document.getElementById('temperatureValue').textContent = config.temperature || 0.7;
       if (config.customEndpoint) {
         document.getElementById('aiCustomEndpoint').value = config.customEndpoint;
       }
-      this.onModelChange(config.model || 'gpt-4o-mini');
+      this.onModelChange(config.model || 'gpt-5-mini');
 
       statusEl.classList.add('configured');
       statusEl.querySelector('.ai-status-text').textContent = `AI insights enabled (${config.provider})`;
@@ -1508,7 +1732,7 @@ class PopupUI {
         createBtn.textContent = 'Create Event';
       }
     } catch (error) {
-      console.error('PingMeet: Error creating event', error);
+      logger.error('Error creating event', error);
       alert('Error creating event: ' + error.message);
       createBtn.disabled = false;
       createBtn.textContent = 'Create Event';

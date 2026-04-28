@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 /**
  * Daily Summary Popup - JavaScript
  * Displays today's meeting overview
@@ -21,7 +22,7 @@ class DailySummaryPopup {
       try {
         this.events = JSON.parse(decodeURIComponent(eventsData));
       } catch (error) {
-        console.error('PingMeet: Failed to parse events data', error);
+        logger.error('Failed to parse events data', error);
         this.events = [];
       }
     }

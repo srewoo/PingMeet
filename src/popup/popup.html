@@ -38,6 +38,30 @@
         <div class="status" id="status">
           <div class="status-indicator" id="statusIndicator"></div>
           <div class="status-text" id="statusText">Monitoring calendar...</div>
+          <button class="sync-now-btn" id="syncNowBtn" title="Sync now" aria-label="Sync now">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <path d="M1 4v4h4M15 12V8h-4"/>
+              <path d="M13.5 5.5A6 6 0 0 0 2 8M2.5 10.5A6 6 0 0 0 14 8"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- DND / Focus mode quick-control -->
+        <div class="dnd-bar" id="dndBar">
+          <div class="dnd-status">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+              <circle cx="8" cy="8" r="6.5"/>
+              <line x1="3.5" y1="3.5" x2="12.5" y2="12.5"/>
+            </svg>
+            <span id="dndStatusText">Notifications: ON</span>
+          </div>
+          <div class="dnd-actions" id="dndActions">
+            <button class="dnd-btn" data-dnd-minutes="60">1h</button>
+            <button class="dnd-btn" data-dnd-minutes="240">4h</button>
+            <button class="dnd-btn" data-dnd-minutes="today">Today</button>
+            <button class="dnd-btn" id="snoozeAllBtn" title="Push every pending reminder back 15 min">+15m all</button>
+            <button class="dnd-btn dnd-off hidden" id="dndOffBtn">Turn off</button>
+          </div>
         </div>
 
         <div class="duration-stats" id="durationStats">
@@ -197,6 +221,17 @@
                     <path d="M4 6l4 4 4-4"/>
                   </svg>
                 </button>
+              </div>
+
+              <!-- Calendar selection list (shown only when connected) -->
+              <div class="calendar-list hidden" id="googleCalendarList">
+                <div class="calendar-list-header">
+                  <span>Sync from</span>
+                  <button class="link-btn" id="googleCalRefreshBtn" title="Refresh calendar list">↻</button>
+                </div>
+                <div class="calendar-list-items" id="googleCalendarItems">
+                  <div class="calendar-list-empty">Loading…</div>
+                </div>
               </div>
 
               <!-- Expandable Setup Form -->
@@ -409,6 +444,54 @@
             </label>
           </div>
 
+          <!-- ============================================
+               ADVANCED — Smart behaviour
+               ============================================ -->
+          <details class="settings-group">
+            <summary class="settings-group-summary">Smart behaviour</summary>
+
+            <div class="setting-item">
+              <label class="checkbox-label">
+                <input type="checkbox" id="smartReminderOffset" />
+                <span>Smart reminder timing</span>
+              </label>
+              <div class="setting-hint">External meetings: 5 min · Internal: 2 min · Solo: 1 min</div>
+            </div>
+
+            <div class="setting-item">
+              <label class="checkbox-label">
+                <input type="checkbox" id="respectWorkingHours" />
+                <span>Respect working hours</span>
+              </label>
+              <div class="setting-hint">Silence loud surfaces outside the hours below</div>
+              <div class="hours-row">
+                <label>From <input type="number" id="workStartHour" min="0" max="23" /></label>
+                <label>To <input type="number" id="workEndHour" min="0" max="23" /></label>
+              </div>
+              <div class="weekday-row" id="workDaysRow">
+                <label><input type="checkbox" data-day="0" /> Sun</label>
+                <label><input type="checkbox" data-day="1" /> Mon</label>
+                <label><input type="checkbox" data-day="2" /> Tue</label>
+                <label><input type="checkbox" data-day="3" /> Wed</label>
+                <label><input type="checkbox" data-day="4" /> Thu</label>
+                <label><input type="checkbox" data-day="5" /> Fri</label>
+                <label><input type="checkbox" data-day="6" /> Sat</label>
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <label for="vipOrganizers">VIP organizers</label>
+              <textarea id="vipOrganizers" rows="2" placeholder="boss@company.com&#10;@important-client.com"></textarea>
+              <div class="setting-hint">One per line. Email or @domain. VIP meetings always alert (override DND).</div>
+            </div>
+
+            <div class="setting-item">
+              <label for="dndSchedule">Recurring quiet hours</label>
+              <textarea id="dndSchedule" rows="3" placeholder='[{"days":[0,6],"start":"00:00","end":"23:59"}]'></textarea>
+              <div class="setting-hint">JSON array of windows. Days: 0=Sun..6=Sat. Use times in HH:MM 24h.</div>
+            </div>
+          </details>
+
           <button class="save-btn" id="saveBtn">Save Settings</button>
 
           <div class="settings-divider"></div>
@@ -437,12 +520,14 @@
                 <label for="aiModel">Model</label>
                 <select id="aiModel" class="ai-select">
                   <!-- Options will be populated based on provider -->
-                  <option value="gpt-4o">GPT-4o</option>
-                  <option value="gpt-4o-mini" selected>GPT-4o Mini</option>
-                  <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                  <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                  <option value="o1">O1 (Reasoning)</option>
-                  <option value="o1-mini">O1 Mini (Reasoning)</option>
+                  <option value="gpt-5">GPT-5</option>
+                  <option value="gpt-5-mini" selected>GPT-5 Mini</option>
+                  <option value="gpt-5-nano">GPT-5 Nano</option>
+                  <option value="gpt-4.1">GPT-4.1</option>
+                  <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
+                  <option value="gpt-4.1-nano">GPT-4.1 Nano</option>
+                  <option value="o3">o3 (Reasoning)</option>
+                  <option value="o4-mini">o4-mini (Reasoning)</option>
                 </select>
               </div>
 

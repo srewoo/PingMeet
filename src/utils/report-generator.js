@@ -3,6 +3,7 @@
  */
 
 import { DurationTracker } from './duration-tracker.js';
+import { logger } from '../utils/logger.js';
 
 export class ReportGenerator {
   /**
@@ -362,9 +363,9 @@ export class ReportGenerator {
         saveAs: true
       });
 
-      console.log(`PingMeet: Report downloaded as ${filename}`);
+      logger.debug(`Report downloaded as ${filename}`);
     } catch (error) {
-      console.error('PingMeet: Error downloading report', error);
+      logger.error('Error downloading report', error);
       throw error;
     }
   }
@@ -380,9 +381,9 @@ export class ReportGenerator {
 
       await chrome.tabs.create({ url: url });
 
-      console.log('PingMeet: Report opened in new tab');
+      logger.debug('Report opened in new tab');
     } catch (error) {
-      console.error('PingMeet: Error opening report', error);
+      logger.error('Error opening report', error);
       throw error;
     }
   }

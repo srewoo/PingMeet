@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 /**
  * Content Script - Reads calendar events from Google Calendar DOM
  * Runs on calendar.google.com pages
@@ -48,7 +49,7 @@ class CalendarReader {
     // Check every 10 seconds if extension context is still valid
     this.healthCheckInterval = setInterval(() => {
       if (!this.isContextValid() && !this.contextInvalidated) {
-        console.log('PingMeet: Extension was reloaded, cleaning up...');
+        logger.debug('Extension was reloaded, cleaning up...');
         this.handleContextInvalidation();
       }
     }, 10000);
@@ -58,11 +59,11 @@ class CalendarReader {
    * Initialize the calendar reader
    */
   init() {
-    console.log('PingMeet: Calendar reader initializing (Enhanced v2)...');
+    logger.debug('Calendar reader initializing (Enhanced v2)...');
 
     // Verify context is valid before starting
     if (!this.isContextValid()) {
-      console.error('PingMeet: Extension context is invalid at initialization');
+      logger.error('Extension context is invalid at initialization');
       this.handleContextInvalidation();
       return;
     }
@@ -73,7 +74,7 @@ class CalendarReader {
     // Listen for sync trigger from background service worker
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.type === 'TRIGGER_DOM_SYNC') {
-        console.log('PingMeet: Received DOM sync trigger from background');
+        logger.debug('Received DOM sync trigger from background');
         this.readEvents();
         sendResponse({ success: true });
       }
@@ -87,26 +88,26 @@ class CalendarReader {
     window.addEventListener('message', (event) => {
       // Standard API data (Fetch/XHR)
       if (event.data?.type === 'PINGMEET_CALENDAR_DATA' && event.data?.source === 'google') {
-        console.log('PingMeet: Received calendar data from page context');
+        logger.debug('Received calendar data from page context');
         this.handleApiData(event.data.data);
       }
 
       // React state extraction data
       if (event.data?.type === 'PINGMEET_REACT_STATE') {
-        console.log('PingMeet: Received React state data');
+        logger.debug('Received React state data');
         this.handleReactStateData(event.data.events);
       }
 
       // LocalStorage/SessionStorage data
       if (event.data?.type === 'PINGMEET_STORAGE_DATA') {
-        console.log('PingMeet: Received storage data');
+        logger.debug('Received storage data');
         this.handleStorageData(event.data.events);
       }
     });
 
     // Wait for calendar to be fully loaded, then read DOM
     this.waitForCalendar().then(() => {
-      console.log('PingMeet: Calendar DOM ready, reading events...');
+      logger.debug('Calendar DOM ready, reading events...');
       this.readEvents();
       this.observeChanges();
       this.observeEventPopups(); // NEW: Watch for event detail popups
@@ -122,7 +123,7 @@ class CalendarReader {
     if (this.contextInvalidated || !this.isContextValid()) return;
 
     if (events && events.length > 0) {
-      console.log(`PingMeet: Processing ${events.length} events from React state`);
+      logger.debug(`Processing ${events.length} events from React state`);
       // Merge with existing events, prefer API data
       const mergedEvents = this.mergeEventSources(this.lastEvents, events);
       if (mergedEvents.length > 0) {
@@ -138,7 +139,7 @@ class CalendarReader {
     if (this.contextInvalidated || !this.isContextValid()) return;
 
     if (events && events.length > 0) {
-      console.log(`PingMeet: Processing ${events.length} events from storage`);
+      logger.debug(`Processing ${events.length} events from storage`);
       // Merge with existing events
       const mergedEvents = this.mergeEventSources(this.lastEvents, events);
       if (mergedEvents.length > 0) {
@@ -212,9 +213,9 @@ class CalendarReader {
         this.remove();
       };
       (document.head || document.documentElement).appendChild(script);
-      console.log('PingMeet: Injected page script for API interception');
+      logger.debug('Injected page script for API interception');
     } catch (e) {
-      console.warn('PingMeet: Could not inject page script', e);
+      logger.warn('Could not inject page script', e);
     }
   }
 
@@ -233,7 +234,7 @@ class CalendarReader {
     if (data?.items && Array.isArray(data.items)) {
       const events = this.parseApiEvents(data.items);
       if (events.length > 0) {
-        console.log(`PingMeet: Parsed ${events.length} events from API`);
+        logger.debug(`Parsed ${events.length} events from API`);
         this.sendToBackground(events);
       }
     }
@@ -257,11 +258,11 @@ class CalendarReader {
 
         if (hasCalendarContent) {
           clearInterval(checkInterval);
-          console.log('PingMeet: Calendar DOM detected');
+          logger.debug('Calendar DOM detected');
           resolve();
         } else if (attempts >= maxAttempts) {
           clearInterval(checkInterval);
-          console.log('PingMeet: Calendar detection timeout, proceeding anyway');
+          logger.debug('Calendar detection timeout, proceeding anyway');
           resolve();
         }
       }, 500);
@@ -294,19 +295,19 @@ class CalendarReader {
         try {
           const eventElements = document.querySelectorAll(selector);
           if (eventElements.length > 0) {
-            console.log(`PingMeet: Found ${eventElements.length} elements with ${selector}`);
+            logger.debug(`Found ${eventElements.length} elements with ${selector}`);
 
             eventElements.forEach(el => {
               try {
                 const event = this.parseEventElement(el);
                 if (event) events.push(event);
               } catch (err) {
-                console.warn('PingMeet: Failed to parse event element', err);
+                logger.warn('Failed to parse event element', err);
               }
             });
           }
         } catch (err) {
-          console.warn(`PingMeet: Selector ${selector} failed`, err);
+          logger.warn(`Selector ${selector} failed`, err);
         }
       }
 
@@ -321,7 +322,7 @@ class CalendarReader {
         try {
           const ariaEvents = document.querySelectorAll(selector);
           if (ariaEvents.length > 0) {
-            console.log(`PingMeet: Found ${ariaEvents.length} aria-labeled elements with ${selector}`);
+            logger.debug(`Found ${ariaEvents.length} aria-labeled elements with ${selector}`);
 
             ariaEvents.forEach(el => {
               try {
@@ -330,12 +331,12 @@ class CalendarReader {
                   events.push(event);
                 }
               } catch (err) {
-                console.warn('PingMeet: Failed to parse aria event', err);
+                logger.warn('Failed to parse aria event', err);
               }
             });
           }
         } catch (err) {
-          console.warn(`PingMeet: Aria selector ${selector} failed`, err);
+          logger.warn(`Aria selector ${selector} failed`, err);
         }
       }
 
@@ -350,7 +351,7 @@ class CalendarReader {
         try {
           const eventLinks = document.querySelectorAll(selector);
           if (eventLinks.length > 0) {
-            console.log(`PingMeet: Found ${eventLinks.length} event links with ${selector}`);
+            logger.debug(`Found ${eventLinks.length} event links with ${selector}`);
 
             eventLinks.forEach(el => {
               try {
@@ -359,35 +360,35 @@ class CalendarReader {
                   events.push(event);
                 }
               } catch (err) {
-                console.warn('PingMeet: Failed to parse event link', err);
+                logger.warn('Failed to parse event link', err);
               }
             });
           }
         } catch (err) {
-          console.warn(`PingMeet: Link selector ${selector} failed`, err);
+          logger.warn(`Link selector ${selector} failed`, err);
         }
       }
 
       // Strategy 4: Deep scan for any time patterns (last resort)
       if (events.length === 0) {
-        console.log('PingMeet: No events found with standard selectors, trying deep scan...');
+        logger.debug('No events found with standard selectors, trying deep scan...');
         try {
           this.deepScanForEvents(events);
         } catch (err) {
-          console.warn('PingMeet: Deep scan failed', err);
+          logger.warn('Deep scan failed', err);
         }
       }
 
       // Deduplicate and send
       const uniqueEvents = this.deduplicateEvents(events);
-      console.log(`PingMeet: Total unique events found: ${uniqueEvents.length}`);
+      logger.debug(`Total unique events found: ${uniqueEvents.length}`);
 
       if (uniqueEvents.length > 0 || this.hasChanges(uniqueEvents)) {
         this.lastEvents = uniqueEvents;
         this.sendToBackground(uniqueEvents);
       }
     } catch (error) {
-      console.error('PingMeet: Error reading events', error);
+      logger.error('Error reading events', error);
     }
   }
 
@@ -690,7 +691,7 @@ class CalendarReader {
 
       return eventDate.toISOString();
     } catch (error) {
-      console.warn('PingMeet: Error extracting time', error);
+      logger.warn('Error extracting time', error);
       return null;
     }
   }
@@ -720,7 +721,7 @@ class CalendarReader {
     for (const pattern of patterns) {
       const match = combined.match(pattern);
       if (match) {
-        console.log('PingMeet: Found meeting link via pattern:', match[0]);
+        logger.debug('Found meeting link via pattern:', match[0]);
         return match[0];
       }
     }
@@ -733,7 +734,7 @@ class CalendarReader {
     for (const platform of platforms) {
       const anchor = el.querySelector(`a[href*="${platform}"]`);
       if (anchor) {
-        console.log('PingMeet: Found meeting link via anchor:', anchor.href);
+        logger.debug('Found meeting link via anchor:', anchor.href);
         return anchor.href;
       }
     }
@@ -743,7 +744,7 @@ class CalendarReader {
       for (const platform of platforms) {
         const anchor = el.parentElement.querySelector(`a[href*="${platform}"]`);
         if (anchor) {
-          console.log('PingMeet: Found meeting link in parent:', anchor.href);
+          logger.debug('Found meeting link in parent:', anchor.href);
           return anchor.href;
         }
       }
@@ -1071,7 +1072,7 @@ class CalendarReader {
       subtree: true
     });
 
-    console.log('PingMeet: Event popup observer active');
+    logger.debug('Event popup observer active');
   }
 
   /**
@@ -1096,7 +1097,7 @@ class CalendarReader {
       // Check if we already have this event's details cached
       if (this.eventDetailsCache.has(eventId)) return;
 
-      console.log('PingMeet: Scraping event popup for:', eventId);
+      logger.debug('Scraping event popup for:', eventId);
 
       const details = {
         id: eventId,
@@ -1236,7 +1237,7 @@ class CalendarReader {
       // Cache the scraped details
       if (Object.keys(details).length > 2) {
         this.eventDetailsCache.set(eventId, details);
-        console.log('PingMeet: Scraped event details:', details);
+        logger.debug('Scraped event details:', details);
 
         // Merge with existing events and send update
         const existingEvent = this.lastEvents.find(e => e.id === eventId);
@@ -1249,7 +1250,7 @@ class CalendarReader {
         }
       }
     } catch (error) {
-      console.warn('PingMeet: Error scraping event popup', error);
+      logger.warn('Error scraping event popup', error);
     }
   }
 
@@ -1279,7 +1280,7 @@ class CalendarReader {
       subtree: true,
     });
 
-    console.log('PingMeet: Observing calendar changes');
+    logger.debug('Observing calendar changes');
   }
 
   /**
@@ -1323,7 +1324,7 @@ class CalendarReader {
 
     // Check if extension context is still valid
     if (!this.isContextValid()) {
-      console.warn('PingMeet: Extension context invalidated. Please refresh the page.');
+      logger.warn('Extension context invalidated. Please refresh the page.');
       this.handleContextInvalidation();
       return;
     }
@@ -1345,18 +1346,18 @@ class CalendarReader {
             if (error.includes('Extension context invalidated') || 
                 error.includes('message port closed') ||
                 error.includes('receiving end does not exist')) {
-              console.warn('PingMeet: Extension context invalidated. Please refresh the page.');
+              logger.warn('Extension context invalidated. Please refresh the page.');
               this.handleContextInvalidation();
             } else {
-              console.error('PingMeet: Error sending events', chrome.runtime.lastError);
+              logger.error('Error sending events', chrome.runtime.lastError);
             }
           } else {
-            console.log(`PingMeet: Sent ${events.length} events to background`);
+            logger.debug(`Sent ${events.length} events to background`);
           }
         }
       );
     } catch (error) {
-      console.error('PingMeet: Failed to send message', error);
+      logger.error('Failed to send message', error);
       // Check if it's a context invalidation error
       if (error.message && 
           (error.message.includes('Extension context invalidated') || 
@@ -1376,7 +1377,7 @@ class CalendarReader {
       return;
     }
 
-    console.log('PingMeet: Handling context invalidation - cleaning up...');
+    logger.debug('Handling context invalidation - cleaning up...');
     this.contextInvalidated = true;
 
     // Clear any running intervals to prevent further errors
@@ -1518,7 +1519,7 @@ class CalendarReader {
 
     setTimeout(() => {
       clearInterval(countdownInterval);
-      console.log('PingMeet: Auto-reloading page after context invalidation...');
+      logger.debug('Auto-reloading page after context invalidation...');
       window.location.reload();
     }, 30000);
   }

@@ -32,6 +32,23 @@ export const DEFAULT_SETTINGS = {
   soundVolume: 70, // 0-100
   dailySummary: true, // Daily summary at 10 AM
   voiceReminder: false, // Voice/spoken reminder toggle
+  aiInsightsEnabled: false, // BETA: AI-powered insights (requires user API key)
+  dndUntil: 0, // Epoch ms; suppress non-critical notifications until this time (0 = off)
+  respectWorkingHours: false, // When true, suppress loud surfaces outside working hours
+  workStartHour: 9,  // 0-23, inclusive
+  workEndHour: 18,   // 0-23, exclusive
+  workDays: [1, 2, 3, 4, 5], // 0=Sun, 1=Mon, ... 6=Sat
+  smartReminderOffset: false, // When true, override reminderMinutes per meeting:
+                              //   external (cross-domain attendees) → 5 min
+                              //   internal multi-attendee            → 2 min
+                              //   solo / 1-on-1                       → 1 min
+  dndSchedule: [], // Array of { days: [0..6], start: "HH:MM", end: "HH:MM" }.
+                   // When NOW falls in any window, loud surfaces are suppressed.
+                   // Example: [{ days: [0,6], start: "00:00", end: "23:59" }]
+                   // would silence weekends entirely.
+  vipOrganizers: [], // Array of email addresses or domains. Meetings organized
+                     // by these get a 5-minute reminder regardless of other
+                     // settings (overrides smartReminderOffset/DND for popup).
 };
 
 // Meeting link patterns

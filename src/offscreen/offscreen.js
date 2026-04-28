@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 /**
  * Offscreen document for audio playback and voice synthesis
  * Chrome requires audio to be played from a document context
@@ -20,9 +21,9 @@ async function playAlert() {
     const audio = new Audio(chrome.runtime.getURL('assets/sounds/sweep.mp3'));
     audio.volume = 0.7;
     await audio.play();
-    console.log('PingMeet: Alert sound played');
+    logger.debug('Alert sound played');
   } catch (error) {
-    console.error('PingMeet: Error playing sound', error);
+    logger.error('Error playing sound', error);
   }
 }
 
@@ -38,8 +39,8 @@ function speakReminder(text) {
     utterance.lang = 'en-US';
 
     window.speechSynthesis.speak(utterance);
-    console.log('PingMeet: Voice reminder spoken:', text);
+    logger.debug('Voice reminder spoken:', text);
   } catch (error) {
-    console.error('PingMeet: Error speaking reminder', error);
+    logger.error('Error speaking reminder', error);
   }
 }

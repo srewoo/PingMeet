@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 /**
  * Injected Script - Runs in page's MAIN world to intercept fetch/XHR requests
  * This script is injected by calendar-reader.js and outlook-reader.js
@@ -12,7 +13,7 @@
 (function() {
   'use strict';
 
-  console.log('PingMeet: Injected script running in page context (Enhanced v2)');
+  logger.debug('Injected script running in page context (Enhanced v2)');
 
   // ============================================
   // METHOD 1: FETCH API INTERCEPTION
@@ -32,7 +33,7 @@
         const data = await clone.json().catch(() => null);
 
         if (data) {
-          console.log('PingMeet: Intercepted Google Calendar API:', url);
+          logger.debug('Intercepted Google Calendar API:', url);
           const enhancedData = enhanceGoogleCalendarData(data);
           window.postMessage({
             type: 'PINGMEET_CALENDAR_DATA',
@@ -49,7 +50,7 @@
         const data = await clone.json().catch(() => null);
 
         if (data) {
-          console.log('PingMeet: Intercepted Outlook API:', url);
+          logger.debug('Intercepted Outlook API:', url);
           const enhancedData = enhanceOutlookData(data);
           window.postMessage({
             type: 'PINGMEET_CALENDAR_DATA',
@@ -88,7 +89,7 @@
             (url.includes('/events') || url.includes('calendarList'))) {
           const data = JSON.parse(this.responseText);
           if (data) {
-            console.log('PingMeet: Intercepted Google Calendar XHR:', url);
+            logger.debug('Intercepted Google Calendar XHR:', url);
             const enhancedData = enhanceGoogleCalendarData(data);
             window.postMessage({
               type: 'PINGMEET_CALENDAR_DATA',
@@ -104,7 +105,7 @@
         if (url.includes('graph.microsoft.com') && url.includes('/events')) {
           const data = JSON.parse(this.responseText);
           if (data) {
-            console.log('PingMeet: Intercepted Outlook XHR:', url);
+            logger.debug('Intercepted Outlook XHR:', url);
             const enhancedData = enhanceOutlookData(data);
             window.postMessage({
               type: 'PINGMEET_CALENDAR_DATA',
@@ -159,7 +160,7 @@
       });
 
       if (events.length > 0) {
-        console.log(`PingMeet: Extracted ${events.length} events from React state`);
+        logger.debug(`Extracted ${events.length} events from React state`);
         window.postMessage({
           type: 'PINGMEET_REACT_STATE',
           events: events
@@ -168,7 +169,7 @@
 
       return events;
     } catch (e) {
-      console.warn('PingMeet: React state extraction failed', e);
+      logger.warn('React state extraction failed', e);
       return [];
     }
   }
@@ -277,7 +278,7 @@
       }
 
       if (events.length > 0) {
-        console.log(`PingMeet: Found ${events.length} events in storage`);
+        logger.debug(`Found ${events.length} events in storage`);
         window.postMessage({
           type: 'PINGMEET_STORAGE_DATA',
           events: events
@@ -492,6 +493,6 @@
     }
   });
 
-  console.log('PingMeet: Enhanced injection complete - Fetch, XHR, React, Storage interception active');
+  logger.debug('Enhanced injection complete - Fetch, XHR, React, Storage interception active');
 })();
 

@@ -5,8 +5,24 @@
  */
 
 import { AI_CONFIG } from './constants.js';
+import { logger } from '../utils/logger.js';
+import { StorageManager } from './storage.js';
 
 export class AIInsights {
+  /**
+   * AI insights are a BETA feature. Gated behind settings.aiInsightsEnabled
+   * (default false). When disabled, all AI calls short-circuit and the popup
+   * falls back to local heuristic insights.
+   */
+  static async isEnabled() {
+    try {
+      const settings = await StorageManager.getSettings();
+      return !!settings?.aiInsightsEnabled;
+    } catch {
+      return false;
+    }
+  }
+
   static API_ENDPOINTS = {
     openai: 'https://api.openai.com/v1/chat/completions',
     anthropic: 'https://api.anthropic.com/v1/messages',
@@ -40,6 +56,7 @@ export class AIInsights {
    * Check if AI is configured
    */
   static async isConfigured() {
+    if (!(await this.isEnabled())) return false;
     const config = await this.getConfig();
     return !!config?.apiKey;
   }
@@ -48,6 +65,9 @@ export class AIInsights {
    * Generate meeting insights using AI
    */
   static async generateInsights(events) {
+    if (!(await this.isEnabled())) {
+      return { success: false, error: 'AI insights disabled (beta feature, opt in via settings)' };
+    }
     const config = await this.getConfig();
     if (!config?.apiKey) {
       return { success: false, error: 'No API key configured' };
@@ -80,7 +100,7 @@ export class AIInsights {
 
       return { success: true, insights };
     } catch (error) {
-      console.error('PingMeet: AI insights error', error);
+      logger.error('AI insights error', error);
       return { success: false, error: error.message };
     }
   }
@@ -143,7 +163,7 @@ Type must be one of: warning, suggestion, info`
     const data = await response.json();
     const content = data.choices[0]?.message?.content;
 
-    console.log('PingMeet: OpenAI raw response:', content);
+    logger.debug('OpenAI raw response:', content);
 
     // If using JSON mode, content will be a JSON object with "insights" key
     let insights;
@@ -158,7 +178,7 @@ Type must be one of: warning, suggestion, info`
       insights = this.parseInsights(content);
     }
 
-    console.log('PingMeet: Parsed insights:', insights);
+    logger.debug('Parsed insights:', insights);
 
     return Array.isArray(insights) ? insights : this.parseInsights(content);
   }
@@ -259,11 +279,11 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
    */
   static parseInsights(content) {
     if (!content) {
-      console.warn('PingMeet: No content to parse');
+      logger.warn('No content to parse');
       return [{ type: 'info', text: 'No insights available' }];
     }
 
-    console.log('PingMeet: Parsing content:', content.substring(0, 100) + '...');
+    logger.debug('Parsing content:', content.substring(0, 100) + '...');
 
     // Remove markdown code blocks if present
     let cleanedContent = content.trim();
@@ -279,7 +299,7 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
       cleanedContent = jsonArrayMatch[0];
     }
 
-    console.log('PingMeet: Cleaned content:', cleanedContent.substring(0, 100) + '...');
+    logger.debug('Cleaned content:', cleanedContent.substring(0, 100) + '...');
 
     // Try parsing with progressively more aggressive fixes
     const parseAttempts = [
@@ -340,7 +360,7 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
 
         // Ensure it's an array
         if (Array.isArray(parsed)) {
-          console.log(`PingMeet: Successfully parsed array with ${parsed.length} insights (attempt ${i + 1})`);
+          logger.debug(`Successfully parsed array with ${parsed.length} insights (attempt ${i + 1})`);
           // Validate and clean each insight
           return parsed.filter(item => item && typeof item === 'object')
             .map(item => ({
@@ -351,19 +371,19 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
         } else if (typeof parsed === 'object' && parsed !== null) {
           // If it's a single object or has insights key, handle it
           if (parsed.insights && Array.isArray(parsed.insights)) {
-            console.log(`PingMeet: Extracted insights array from object (attempt ${i + 1})`);
+            logger.debug(`Extracted insights array from object (attempt ${i + 1})`);
             return parsed.insights;
           }
-          console.log(`PingMeet: Wrapped single object into array (attempt ${i + 1})`);
+          logger.debug(`Wrapped single object into array (attempt ${i + 1})`);
           return [parsed];
         }
       } catch (e) {
-        console.log(`PingMeet: Parse attempt ${i + 1} failed:`, e.message);
+        logger.debug(`Parse attempt ${i + 1} failed:`, e.message);
       }
     }
 
-    console.error('PingMeet: All JSON parse attempts failed');
-    console.log('PingMeet: Raw content that failed:', cleanedContent);
+    logger.error('All JSON parse attempts failed');
+    logger.debug('Raw content that failed:', cleanedContent);
 
     // Final fallback: Try to extract meaningful insights from text
     const lines = content.split('\n').filter(line => {
@@ -373,7 +393,7 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
     });
 
     if (lines.length > 0) {
-      console.log('PingMeet: Using text fallback with', lines.length, 'lines');
+      logger.debug('Using text fallback with', lines.length, 'lines');
       return lines.slice(0, 5).map(line => {
         let text = line
           .replace(/^[-•*]\s*/, '') // Remove bullet points
