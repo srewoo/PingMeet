@@ -22,7 +22,7 @@ export class DailySummary {
   static async scheduleDailySummary() {
     // Calculate next 10 AM
     const now = new Date();
-    let next10AM = new Date();
+    const next10AM = new Date();
     next10AM.setHours(10, 0, 0, 0);
 
     // If it's already past 10 AM today, schedule for tomorrow
@@ -99,10 +99,11 @@ export class DailySummary {
       const alarms = await chrome.alarms.getAll();
       const now = Date.now();
       const windowMs = windowMinutes * 60 * 1000;
-      return alarms.some(alarm =>
-        typeof alarm.name === 'string' &&
-        alarm.name.startsWith('meeting_') &&
-        Math.abs(alarm.scheduledTime - now) <= windowMs
+      return alarms.some(
+        alarm =>
+          typeof alarm.name === 'string' &&
+          alarm.name.startsWith('meeting_') &&
+          Math.abs(alarm.scheduledTime - now) <= windowMs
       );
     } catch {
       return false;
@@ -125,9 +126,9 @@ export class DailySummary {
         htmlLink: event.htmlLink,
         attendees: (event.attendees || []).map(a => ({
           name: a.name,
-          email: a.email
+          email: a.email,
         })),
-        hasConflict: event.hasConflict
+        hasConflict: event.hasConflict,
       }));
 
       const eventsData = encodeURIComponent(JSON.stringify(sanitizedEvents));
@@ -223,9 +224,7 @@ export class DailySummary {
         hour12: true,
       });
 
-      const title = event.title.length > 30
-        ? event.title.substring(0, 27) + '...'
-        : event.title;
+      const title = event.title.length > 30 ? event.title.substring(0, 27) + '...' : event.title;
 
       const conflictMarker = event.hasConflict ? ' [conflict]' : '';
 

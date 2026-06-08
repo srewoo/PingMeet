@@ -41,13 +41,64 @@ class PopupUI {
     await this.updateCalendarConnectionStatus();
     await this.updateAIStatus();
     await this.updateDndBar();
+    await this.updateHealthLine();
 
     // Auto-refresh every 30 seconds
     setInterval(() => {
       this.loadEvents();
       this.updateDurationStats();
       this.updateDndBar();
+      this.updateHealthLine();
     }, 30000);
+  }
+
+  /**
+   * Render the diagnostics line: last-sync age + per-provider token health,
+   * so a silent token failure is visible to the user instead of mysterious.
+   */
+  async updateHealthLine() {
+    const el = document.getElementById('healthLine');
+    if (!el) return;
+
+    try {
+      const { lastSync, providers } = await CalendarAPI.getHealthSnapshot();
+
+      // No API providers connected — nothing useful to show here.
+      if (providers.length === 0) {
+        el.textContent = '';
+        el.classList.remove('warning');
+        return;
+      }
+
+      const parts = [];
+
+      if (lastSync) {
+        const ageMin = Math.round((Date.now() - new Date(lastSync).getTime()) / 60000);
+        parts.push(ageMin <= 0 ? 'Synced just now' : `Synced ${ageMin}m ago`);
+      } else {
+        parts.push('Not synced yet');
+      }
+
+      let hasWarning = false;
+      for (const p of providers) {
+        if (p.needsReauth || p.state === 'needs_reauth') {
+          parts.push(`${p.label}: ⚠️ reconnect needed`);
+          hasWarning = true;
+        } else if (p.state === 'refreshing') {
+          parts.push(`${p.label}: refreshing…`);
+        } else if (p.expiresInMin !== null) {
+          parts.push(`${p.label}: valid ${p.expiresInMin}m`);
+        } else {
+          parts.push(`${p.label}: connected`);
+        }
+      }
+
+      el.textContent = parts.join(' · ');
+      el.classList.toggle('warning', hasWarning);
+    } catch (error) {
+      logger.error('Error updating health line', error);
+      el.textContent = '';
+    }
   }
 
   /**
@@ -84,7 +135,7 @@ class PopupUI {
 
     // Calendar filter buttons
     document.querySelectorAll('.filter-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', e => {
         const filter = e.currentTarget.dataset.filter;
         this.setCalendarFilter(filter);
       });
@@ -95,34 +146,48 @@ class PopupUI {
     this.safeAddEventListener('outlookToggleBtn', 'click', () => this.toggleOutlookSetup());
 
     // Google Calendar connection buttons - Simple mode
-    this.safeAddEventListener('googleSimpleConnectBtn', 'click', () => this.handleGoogleSimpleConnect());
-    this.safeAddEventListener('googleSimpleDisconnectBtn', 'click', () => this.handleGoogleDisconnect());
+    this.safeAddEventListener('googleSimpleConnectBtn', 'click', () =>
+      this.handleGoogleSimpleConnect()
+    );
+    this.safeAddEventListener('googleSimpleDisconnectBtn', 'click', () =>
+      this.handleGoogleDisconnect()
+    );
 
     // Google Calendar connection buttons - Advanced mode
     this.safeAddEventListener('googleConnectBtn', 'click', () => this.handleGoogleConnect());
     this.safeAddEventListener('googleDisconnectBtn', 'click', () => this.handleGoogleDisconnect());
 
     // Simple/Advanced mode toggles
-    this.safeAddEventListener('showAdvancedGoogleBtn', 'click', () => this.showGoogleAdvancedMode());
+    this.safeAddEventListener('showAdvancedGoogleBtn', 'click', () =>
+      this.showGoogleAdvancedMode()
+    );
     this.safeAddEventListener('showSimpleGoogleBtn', 'click', () => this.showGoogleSimpleMode());
 
     // Outlook Calendar buttons - Simple mode
-    this.safeAddEventListener('outlookSimpleConnectBtn', 'click', () => this.handleOutlookSimpleConnect());
-    this.safeAddEventListener('outlookSimpleDisconnectBtn', 'click', () => this.handleOutlookDisconnect());
+    this.safeAddEventListener('outlookSimpleConnectBtn', 'click', () =>
+      this.handleOutlookSimpleConnect()
+    );
+    this.safeAddEventListener('outlookSimpleDisconnectBtn', 'click', () =>
+      this.handleOutlookDisconnect()
+    );
 
     // Outlook Calendar buttons - Advanced mode
     this.safeAddEventListener('outlookConnectBtn', 'click', () => this.handleOutlookConnect());
-    this.safeAddEventListener('outlookDisconnectBtn', 'click', () => this.handleOutlookDisconnect());
+    this.safeAddEventListener('outlookDisconnectBtn', 'click', () =>
+      this.handleOutlookDisconnect()
+    );
     this.safeAddEventListener('outlookOpenBtn', 'click', () => this.openOutlookCalendar());
 
     // Outlook Simple/Advanced mode toggles
-    this.safeAddEventListener('showAdvancedOutlookBtn', 'click', () => this.showOutlookAdvancedMode());
+    this.safeAddEventListener('showAdvancedOutlookBtn', 'click', () =>
+      this.showOutlookAdvancedMode()
+    );
     this.safeAddEventListener('showSimpleOutlookBtn', 'click', () => this.showOutlookSimpleMode());
 
     // Footer help link
     const footerHelp = document.getElementById('footerHelp');
     if (footerHelp) {
-      footerHelp.addEventListener('click', (e) => {
+      footerHelp.addEventListener('click', e => {
         e.preventDefault();
         this.showSettings();
         // Scroll to help section after a brief delay
@@ -139,7 +204,7 @@ class PopupUI {
     this.displayRedirectUri();
 
     // Event delegation for decline buttons (dynamically created)
-    document.addEventListener('click', async (e) => {
+    document.addEventListener('click', async e => {
       if (e.target.closest('.event-decline-btn')) {
         const btn = e.target.closest('.event-decline-btn');
         const eventId = btn.dataset.eventId;
@@ -161,7 +226,9 @@ class PopupUI {
     this.safeAddEventListener('snoozeAllBtn', 'click', () => this.handleSnoozeAll(15));
 
     // Calendar list refresh
-    this.safeAddEventListener('googleCalRefreshBtn', 'click', () => this.renderGoogleCalendarList(true));
+    this.safeAddEventListener('googleCalRefreshBtn', 'click', () =>
+      this.renderGoogleCalendarList(true)
+    );
   }
 
   /**
@@ -203,7 +270,7 @@ class PopupUI {
       }
       list = result.calendars;
       await chrome.storage.local.set({
-        googleCalendarsCache: { calendars: list, fetchedAt: Date.now() }
+        googleCalendarsCache: { calendars: list, fetchedAt: Date.now() },
       });
     }
 
@@ -234,8 +301,9 @@ class PopupUI {
 
     items.querySelectorAll('input[type="checkbox"]').forEach(cb => {
       cb.addEventListener('change', async () => {
-        const checked = Array.from(items.querySelectorAll('input[type="checkbox"]:checked'))
-          .map(c => c.dataset.calId);
+        const checked = Array.from(items.querySelectorAll('input[type="checkbox"]:checked')).map(
+          c => c.dataset.calId
+        );
         // Always keep at least primary if user unchecks everything.
         const effective = checked.length > 0 ? checked : ['primary'];
         await CalendarAPI.setEnabledGoogleCalendars(effective);
@@ -253,7 +321,9 @@ class PopupUI {
       if (btn) {
         const original = btn.textContent;
         btn.textContent = count > 0 ? `+${minutes}m × ${count}` : 'No alarms';
-        setTimeout(() => { btn.textContent = original; }, 2000);
+        setTimeout(() => {
+          btn.textContent = original;
+        }, 2000);
       }
     } catch (error) {
       logger.error('Snooze all failed', error);
@@ -274,7 +344,11 @@ class PopupUI {
       await this.syncCalendarEvents();
       // Also poke the service worker to trigger DOM sync (covers Outlook/Google
       // tabs the user may have open without API auth).
-      try { await chrome.runtime.sendMessage({ type: 'TRIGGER_DOM_SYNC' }); } catch { /* ignore */ }
+      try {
+        await chrome.runtime.sendMessage({ type: 'TRIGGER_DOM_SYNC' });
+      } catch {
+        /* ignore */
+      }
       await this.loadEvents();
       this.renderEvents();
     } catch (error) {
@@ -359,7 +433,6 @@ class PopupUI {
     }
   }
 
-
   /**
    * Toggle Google Calendar setup form visibility
    */
@@ -407,7 +480,9 @@ class PopupUI {
     // Basic GUID format validation
     const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!guidRegex.test(clientId)) {
-      alert('Invalid Client ID format. It should be a GUID (e.g., xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)');
+      alert(
+        'Invalid Client ID format. It should be a GUID (e.g., xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)'
+      );
       clientIdInput.focus();
       return;
     }
@@ -473,7 +548,8 @@ class PopupUI {
     const btn = document.getElementById('outlookSimpleConnectBtn');
 
     btn.disabled = true;
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" class="spinner"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><path fill="currentColor" d="M12 2a10 10 0 0 1 10 10h-2a8 8 0 0 0-8-8V2z"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></path></svg> Connecting...';
+    btn.innerHTML =
+      '<svg width="16" height="16" viewBox="0 0 24 24" class="spinner"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><path fill="currentColor" d="M12 2a10 10 0 0 1 10 10h-2a8 8 0 0 0-8-8V2z"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></path></svg> Connecting...';
 
     try {
       const result = await CalendarAPI.connectOutlookSimple();
@@ -484,7 +560,9 @@ class PopupUI {
       } else {
         // Check if needs advanced mode
         if (result.needsAdvanced) {
-          alert('One-click Outlook connection is not configured yet. Please use Advanced mode to enter your Azure App credentials.\n\nOnce the developer configures the app, one-click will work for everyone.');
+          alert(
+            'One-click Outlook connection is not configured yet. Please use Advanced mode to enter your Azure App credentials.\n\nOnce the developer configures the app, one-click will work for everyone.'
+          );
           this.showOutlookAdvancedMode();
         } else {
           alert('Failed to connect: ' + result.error);
@@ -619,7 +697,8 @@ class PopupUI {
     const btn = document.getElementById('googleSimpleConnectBtn');
 
     btn.disabled = true;
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" class="spinner"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><path fill="currentColor" d="M12 2a10 10 0 0 1 10 10h-2a8 8 0 0 0-8-8V2z"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></path></svg> Connecting...';
+    btn.innerHTML =
+      '<svg width="16" height="16" viewBox="0 0 24 24" class="spinner"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><path fill="currentColor" d="M12 2a10 10 0 0 1 10 10h-2a8 8 0 0 0-8-8V2z"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></path></svg> Connecting...';
 
     try {
       const result = await CalendarAPI.connectGoogleSimple();
@@ -629,11 +708,16 @@ class PopupUI {
         await this.syncCalendarEvents();
       } else {
         // Check for specific error about client_id
-        if (result.error.includes('bad client id') || result.error.includes('OAuth2 not granted') || result.error.includes('OAuth2')) {
-          const message = 'One-Click Connect is not configured.\n\n' +
-                         'To use this feature, the extension needs a configured OAuth2 client in Google Cloud Console.\n\n' +
-                         'For now, please use Advanced Mode to connect with your own Google OAuth credentials.\n\n' +
-                         'Click OK to switch to Advanced Mode.';
+        if (
+          result.error.includes('bad client id') ||
+          result.error.includes('OAuth2 not granted') ||
+          result.error.includes('OAuth2')
+        ) {
+          const message =
+            'One-Click Connect is not configured.\n\n' +
+            'To use this feature, the extension needs a configured OAuth2 client in Google Cloud Console.\n\n' +
+            'For now, please use Advanced Mode to connect with your own Google OAuth credentials.\n\n' +
+            'Click OK to switch to Advanced Mode.';
           alert(message);
           this.showGoogleAdvancedMode();
         } else {
@@ -642,11 +726,16 @@ class PopupUI {
       }
     } catch (error) {
       logger.error('Simple Google connection error', error);
-      if (error.message.includes('bad client id') || error.message.includes('OAuth2 not granted') || error.message.includes('OAuth2')) {
-        const message = 'One-Click Connect is not configured.\n\n' +
-                       'To use this feature, the extension needs a configured OAuth2 client in Google Cloud Console.\n\n' +
-                       'For now, please use Advanced Mode to connect with your own Google OAuth credentials.\n\n' +
-                       'Click OK to switch to Advanced Mode.';
+      if (
+        error.message.includes('bad client id') ||
+        error.message.includes('OAuth2 not granted') ||
+        error.message.includes('OAuth2')
+      ) {
+        const message =
+          'One-Click Connect is not configured.\n\n' +
+          'To use this feature, the extension needs a configured OAuth2 client in Google Cloud Console.\n\n' +
+          'For now, please use Advanced Mode to connect with your own Google OAuth credentials.\n\n' +
+          'Click OK to switch to Advanced Mode.';
         alert(message);
         this.showGoogleAdvancedMode();
       } else {
@@ -710,13 +799,49 @@ class PopupUI {
         await this.syncCalendarEvents();
         await this.loadEvents();
         this.renderEvents();
+      } else if (this.isCancelledMeetingError(result.error)) {
+        // The meeting was already cancelled — there's nothing to decline.
+        // Quietly drop it from the list instead of showing a scary error.
+        await this.removeEventLocally(eventId);
       } else {
         alert('Failed to decline meeting: ' + result.error);
       }
     } catch (error) {
       logger.error('Error declining meeting', error);
-      alert('Error declining meeting: ' + error.message);
+      if (this.isCancelledMeetingError(error.message)) {
+        await this.removeEventLocally(eventId);
+      } else {
+        alert('Error declining meeting: ' + error.message);
+      }
     }
+  }
+
+  /**
+   * Detect the "can't respond to a cancelled meeting" class of errors from
+   * Google / Microsoft Graph so we can handle them gracefully.
+   */
+  isCancelledMeetingError(message) {
+    if (!message) return false;
+    const m = String(message).toLowerCase();
+    return m.includes('cancel'); // matches "canceled" and "cancelled"
+  }
+
+  /**
+   * Remove an event from the stored list and re-render, without a server call.
+   * Used when an event is already gone (e.g. cancelled) so the UI stays clean.
+   */
+  async removeEventLocally(eventId) {
+    try {
+      const events = await StorageManager.getEvents();
+      const filtered = events.filter(e => e.id !== eventId);
+      await StorageManager.saveEvents(filtered);
+      // Also clear any pending reminder alarm/data for it.
+      await chrome.runtime.sendMessage({ type: 'DECLINE_MEETING', eventId });
+    } catch (e) {
+      logger.warn('Could not remove event locally', e?.message);
+    }
+    await this.loadEvents();
+    this.renderEvents();
   }
 
   /**
@@ -745,7 +870,7 @@ class PopupUI {
       await chrome.runtime.sendMessage({
         type: 'CALENDAR_EVENTS',
         events: allEvents,
-        source: 'api'
+        source: 'api',
       });
       await CalendarAPI.updateLastSync();
       await this.loadEvents();
@@ -837,7 +962,10 @@ class PopupUI {
       if (googleSimpleConnectBtn) {
         googleSimpleConnectBtn.classList.remove('hidden');
         if (googleNeedsReauth) {
-          googleSimpleConnectBtn.setAttribute('title', 'Your previous session expired or was revoked. Click to reconnect.');
+          googleSimpleConnectBtn.setAttribute(
+            'title',
+            'Your previous session expired or was revoked. Click to reconnect.'
+          );
         }
         googleSimpleConnectBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" style="margin-right: 8px;">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -917,7 +1045,10 @@ class PopupUI {
       if (outlookSimpleConnectBtn) {
         outlookSimpleConnectBtn.classList.remove('hidden');
         if (outlookNeedsReauth) {
-          outlookSimpleConnectBtn.setAttribute('title', 'Your previous session expired or was revoked. Click to reconnect.');
+          outlookSimpleConnectBtn.setAttribute(
+            'title',
+            'Your previous session expired or was revoked. Click to reconnect.'
+          );
         }
         outlookSimpleConnectBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 23 23" style="margin-right: 8px;">
           <path fill="#f25022" d="M0 0h11v11H0z"/>
@@ -1035,12 +1166,12 @@ class PopupUI {
     // Apply calendar filter
     let filteredEvents = this.events;
     if (this.currentFilter === 'google') {
-      filteredEvents = this.events.filter(e =>
-        e.source === 'google-api' || e.source === 'google-dom'
+      filteredEvents = this.events.filter(
+        e => e.source === 'google-api' || e.source === 'google-dom'
       );
     } else if (this.currentFilter === 'outlook') {
-      filteredEvents = this.events.filter(e =>
-        e.source === 'outlook-api' || e.source === 'outlook-dom'
+      filteredEvents = this.events.filter(
+        e => e.source === 'outlook-api' || e.source === 'outlook-dom'
       );
     }
 
@@ -1089,7 +1220,19 @@ class PopupUI {
         countdownStr = 'starting now!';
       }
     } else {
-      countdownStr = 'started';
+      // Meeting has started — show that it's in progress and, when we know the
+      // end time, how long until it ends.
+      const endTime = event.endTime ? new Date(event.endTime) : null;
+      const msLeft = endTime ? endTime - now : 0;
+      if (msLeft > 0) {
+        const minsLeft = Math.ceil(msLeft / (1000 * 60));
+        countdownStr =
+          minsLeft >= 60
+            ? `in progress · ends in ${Math.floor(minsLeft / 60)}h ${minsLeft % 60}m`
+            : `in progress · ends in ${minsLeft}m`;
+      } else {
+        countdownStr = 'in progress';
+      }
     }
 
     // Add conflict warning if present
@@ -1103,17 +1246,20 @@ class PopupUI {
     const isDeclined = userStatus === 'declined';
 
     // Action buttons
-    const meetingLinkHtml = event.meetingLink && !isDeclined
-      ? `<a href="${event.meetingLink}" class="event-link" target="_blank" title="Join meeting"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 10l4-4M7 4h5v5M4 7v5h5"/></svg></a>`
-      : '';
+    const meetingLinkHtml =
+      event.meetingLink && !isDeclined
+        ? `<a href="${event.meetingLink}" class="event-link" target="_blank" title="Join meeting"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 10l4-4M7 4h5v5M4 7v5h5"/></svg></a>`
+        : '';
 
-    const declineButtonHtml = !isDeclined && (event.source?.includes('google') || event.source?.includes('outlook'))
-      ? `<button class="event-decline-btn" data-event-id="${event.id}" data-source="${event.source}" title="Decline meeting"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 4L4 12M4 4l8 8"/></svg></button>`
-      : '';
+    const declineButtonHtml =
+      !isDeclined && (event.source?.includes('google') || event.source?.includes('outlook'))
+        ? `<button class="event-decline-btn" data-event-id="${event.id}" data-source="${event.source}" title="Decline meeting"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 4L4 12M4 4l8 8"/></svg></button>`
+        : '';
 
-    const actionsHtml = (meetingLinkHtml || declineButtonHtml)
-      ? `<div class="event-actions">${meetingLinkHtml}${declineButtonHtml}</div>`
-      : '';
+    const actionsHtml =
+      meetingLinkHtml || declineButtonHtml
+        ? `<div class="event-actions">${meetingLinkHtml}${declineButtonHtml}</div>`
+        : '';
 
     // Attendees preview
     const attendeesHtml = this.renderAttendees(event);
@@ -1122,15 +1268,17 @@ class PopupUI {
     const detailsHtml = this.renderEventDetails(event);
 
     // Source badge
-    const sourceType = event.source?.includes('google') ? 'google' :
-                       event.source?.includes('outlook') ? 'outlook' : null;
-    const sourceBadge = sourceType ?
-      `<span class="event-source-badge ${sourceType}">${sourceType}</span>` : '';
+    const sourceType = event.source?.includes('google')
+      ? 'google'
+      : event.source?.includes('outlook')
+        ? 'outlook'
+        : null;
+    const sourceBadge = sourceType
+      ? `<span class="event-source-badge ${sourceType}">${sourceType}</span>`
+      : '';
 
     // Declined badge
-    const declinedBadge = isDeclined
-      ? `<span class="event-declined-badge">Declined</span>`
-      : '';
+    const declinedBadge = isDeclined ? `<span class="event-declined-badge">Declined</span>` : '';
 
     return `
       <div class="event-item ${event.hasConflict ? 'has-conflict' : ''} ${isDeclined ? 'declined' : ''}" data-event-id="${event.id}">
@@ -1163,14 +1311,20 @@ class PopupUI {
     const displayAttendees = event.attendees.slice(0, maxDisplay);
     const remaining = event.attendees.length - maxDisplay;
 
-    const attendeeNames = displayAttendees.map(a => {
-      const name = a.name || a.email.split('@')[0];
-      const statusClass = a.responseStatus === 'accepted' ? 'accepted' :
-                          a.responseStatus === 'declined' ? 'declined' : 'tentative';
-      const statusText = a.responseStatus === 'accepted' ? 'Y' :
-                         a.responseStatus === 'declined' ? 'N' : '?';
-      return `<span class="attendee" title="${this.escapeHtml(a.email)} (${a.responseStatus})"><span class="attendee-status ${statusClass}">${statusText}</span> ${this.escapeHtml(name)}</span>`;
-    }).join('');
+    const attendeeNames = displayAttendees
+      .map(a => {
+        const name = a.name || a.email.split('@')[0];
+        const statusClass =
+          a.responseStatus === 'accepted'
+            ? 'accepted'
+            : a.responseStatus === 'declined'
+              ? 'declined'
+              : 'tentative';
+        const statusText =
+          a.responseStatus === 'accepted' ? 'Y' : a.responseStatus === 'declined' ? 'N' : '?';
+        return `<span class="attendee" title="${this.escapeHtml(a.email)} (${a.responseStatus})"><span class="attendee-status ${statusClass}">${statusText}</span> ${this.escapeHtml(name)}</span>`;
+      })
+      .join('');
 
     const remainingHtml = remaining > 0 ? ` <span class="attendee-more">+${remaining}</span>` : '';
 
@@ -1188,9 +1342,10 @@ class PopupUI {
     }
 
     if (event.description && event.description.length > 0) {
-      const shortDesc = event.description.length > 50
-        ? event.description.substring(0, 47) + '...'
-        : event.description;
+      const shortDesc =
+        event.description.length > 50
+          ? event.description.substring(0, 47) + '...'
+          : event.description;
       parts.push(`<span class="meta-description">${this.escapeHtml(shortDesc)}</span>`);
     }
 
@@ -1271,24 +1426,28 @@ class PopupUI {
   setupAIEventListeners() {
     document.getElementById('aiSaveKeyBtn').addEventListener('click', () => this.saveAIKey());
     document.getElementById('aiRemoveKeyBtn').addEventListener('click', () => this.removeAIKey());
-    document.getElementById('refreshInsightsBtn').addEventListener('click', (e) => {
+    document.getElementById('refreshInsightsBtn').addEventListener('click', e => {
       e.stopPropagation(); // Prevent toggling accordion
       e.preventDefault();
       this.loadInsights(true);
     });
 
     // Provider change handler
-    document.getElementById('aiProvider').addEventListener('change', (e) => this.onProviderChange(e.target.value));
+    document
+      .getElementById('aiProvider')
+      .addEventListener('change', e => this.onProviderChange(e.target.value));
 
     // Temperature slider handler
     const tempSlider = document.getElementById('aiTemperature');
     const tempValue = document.getElementById('temperatureValue');
-    tempSlider.addEventListener('input', (e) => {
+    tempSlider.addEventListener('input', e => {
       tempValue.textContent = e.target.value;
     });
 
     // Model change handler - hide temperature for reasoning models
-    document.getElementById('aiModel').addEventListener('change', (e) => this.onModelChange(e.target.value));
+    document
+      .getElementById('aiModel')
+      .addEventListener('change', e => this.onModelChange(e.target.value));
 
     // Initialize provider-specific UI
     this.onProviderChange(document.getElementById('aiProvider').value);
@@ -1319,21 +1478,19 @@ class PopupUI {
         { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
         { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
         { value: 'o3', label: 'o3 (Reasoning)' },
-        { value: 'o4-mini', label: 'o4-mini (Reasoning)' }
+        { value: 'o4-mini', label: 'o4-mini (Reasoning)' },
       ],
       anthropic: [
         { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' },
         { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
-        { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' }
+        { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
       ],
       google: [
         { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
         { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-        { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' }
+        { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
       ],
-      custom: [
-        { value: 'custom-model', label: 'Custom Model (specify in endpoint)' }
-      ]
+      custom: [{ value: 'custom-model', label: 'Custom Model (specify in endpoint)' }],
     };
 
     // Update model dropdown
@@ -1350,7 +1507,7 @@ class PopupUI {
       openai: 'sk-...',
       anthropic: 'sk-ant-...',
       google: 'AIza...',
-      custom: 'Enter your API key'
+      custom: 'Enter your API key',
     };
     apiKeyInput.placeholder = placeholders[provider];
 
@@ -1362,7 +1519,8 @@ class PopupUI {
         const note = document.createElement('p');
         note.className = 'custom-help-note';
         note.style.cssText = 'font-size: 11px; color: var(--text-muted); margin-top: 4px;';
-        note.textContent = 'Enter an OpenAI-compatible API endpoint (e.g., Ollama, LM Studio, local LLMs)';
+        note.textContent =
+          'Enter an OpenAI-compatible API endpoint (e.g., Ollama, LM Studio, local LLMs)';
         customHelp.appendChild(note);
       }
     }
@@ -1409,7 +1567,8 @@ class PopupUI {
       this.onModelChange(config.model || 'gpt-5-mini');
 
       statusEl.classList.add('configured');
-      statusEl.querySelector('.ai-status-text').textContent = `AI insights enabled (${config.provider})`;
+      statusEl.querySelector('.ai-status-text').textContent =
+        `AI insights enabled (${config.provider})`;
       saveBtn.classList.add('hidden');
       removeBtn.classList.remove('hidden');
       keyInput.value = '••••••••••••••••';
@@ -1459,7 +1618,7 @@ class PopupUI {
       openai: /^sk-/,
       anthropic: /^sk-ant-/,
       google: /^AIza/,
-      custom: /.+/ // Any non-empty key for custom
+      custom: /.+/, // Any non-empty key for custom
     };
 
     if (!keyPatterns[provider].test(key)) {
@@ -1467,7 +1626,7 @@ class PopupUI {
         openai: 'sk-...',
         anthropic: 'sk-ant-...',
         google: 'AIza...',
-        custom: 'valid API key'
+        custom: 'valid API key',
       };
       alert(`Please enter a valid ${provider} API key (format: ${examples[provider]})`);
       return;
@@ -1484,7 +1643,7 @@ class PopupUI {
       provider,
       model,
       temperature: model.startsWith('o1') ? undefined : temperature, // O1 models don't support temperature
-      customEndpoint: provider === 'custom' ? customEndpoint : undefined
+      customEndpoint: provider === 'custom' ? customEndpoint : undefined,
     };
 
     await AIInsights.saveConfig(config);
@@ -1555,7 +1714,8 @@ class PopupUI {
     const insightsList = document.getElementById('insightsList');
 
     if (!insights || insights.length === 0) {
-      insightsList.innerHTML = '<div class="insight-item info"><span>Your schedule looks good!</span></div>';
+      insightsList.innerHTML =
+        '<div class="insight-item info"><span>Your schedule looks good!</span></div>';
       return;
     }
 
@@ -1568,7 +1728,7 @@ class PopupUI {
       </svg>`,
       info: `<svg class="insight-icon" viewBox="0 0 20 20" fill="currentColor">
         <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-      </svg>`
+      </svg>`,
     };
 
     // Add source indicator (Issue #27: distinguish AI vs local insights)
@@ -1576,21 +1736,33 @@ class PopupUI {
       ? '<div class="insights-source ai-powered"><span class="source-badge">AI</span></div>'
       : '<div class="insights-source local"><span class="source-badge">Local</span></div>';
 
-    insightsList.innerHTML = sourceLabel + insights.map(insight => `
+    insightsList.innerHTML =
+      sourceLabel +
+      insights
+        .map(
+          insight => `
       <div class="insight-item ${insight.type || 'info'}">
         ${icons[insight.type] || icons.info}
         <span>${this.escapeHtml(insight.text)}</span>
       </div>
-    `).join('');
+    `
+        )
+        .join('');
   }
 
   /**
    * Set up quick create event listeners
    */
   setupQuickCreateListeners() {
-    document.getElementById('quickCreateBtn').addEventListener('click', () => this.showQuickCreateForm());
-    document.getElementById('closeFormBtn').addEventListener('click', () => this.hideQuickCreateForm());
-    document.getElementById('cancelCreateBtn').addEventListener('click', () => this.hideQuickCreateForm());
+    document
+      .getElementById('quickCreateBtn')
+      .addEventListener('click', () => this.showQuickCreateForm());
+    document
+      .getElementById('closeFormBtn')
+      .addEventListener('click', () => this.hideQuickCreateForm());
+    document
+      .getElementById('cancelCreateBtn')
+      .addEventListener('click', () => this.hideQuickCreateForm());
     document.getElementById('createEventBtn').addEventListener('click', () => this.createEvent());
 
     // Set default date to today
@@ -1702,7 +1874,7 @@ class PopupUI {
         endTime: endDateTime,
         location,
         description,
-        addMeetLink
+        addMeetLink,
       };
 
       let result;

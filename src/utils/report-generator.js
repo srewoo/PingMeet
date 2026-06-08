@@ -235,13 +235,14 @@ export class ReportGenerator {
     const maxMinutes = Math.max(...Object.values(breakdown));
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-    return Object.entries(breakdown).map(([date, minutes]) => {
-      const dateObj = new Date(date);
-      const dayName = days[dateObj.getDay()];
-      const percentage = maxMinutes > 0 ? (minutes / maxMinutes) * 100 : 0;
-      const formatted = DurationTracker.formatDuration(minutes);
+    return Object.entries(breakdown)
+      .map(([date, minutes]) => {
+        const dateObj = new Date(date);
+        const dayName = days[dateObj.getDay()];
+        const percentage = maxMinutes > 0 ? (minutes / maxMinutes) * 100 : 0;
+        const formatted = DurationTracker.formatDuration(minutes);
 
-      return `
+        return `
         <div class="bar-row">
           <div class="bar-label">${dayName} ${dateObj.getDate()}</div>
           <div class="bar-container">
@@ -250,29 +251,31 @@ export class ReportGenerator {
           <div class="bar-value">${formatted}</div>
         </div>
       `;
-    }).join('');
+      })
+      .join('');
   }
 
   /**
    * Render platform breakdown
    */
   static renderPlatformBreakdown(platformBreakdown) {
-    const sorted = Object.entries(platformBreakdown)
-      .sort((a, b) => b[1] - a[1]);
+    const sorted = Object.entries(platformBreakdown).sort((a, b) => b[1] - a[1]);
 
     if (sorted.length === 0) {
       return '<li class="platform-item">No platform data available</li>';
     }
 
-    return sorted.map(([platform, minutes]) => {
-      const formatted = DurationTracker.formatDuration(minutes);
-      return `
+    return sorted
+      .map(([platform, minutes]) => {
+        const formatted = DurationTracker.formatDuration(minutes);
+        return `
         <li class="platform-item">
           <span class="platform-name">${platform}</span>
           <span class="platform-time">${formatted}</span>
         </li>
       `;
-    }).join('');
+      })
+      .join('');
   }
 
   /**
@@ -282,40 +285,51 @@ export class ReportGenerator {
     const insights = [];
 
     // Most productive day
-    const maxDay = Object.entries(breakdown).reduce((max, [date, minutes]) =>
-      minutes > max.minutes ? { date, minutes } : max,
+    const maxDay = Object.entries(breakdown).reduce(
+      (max, [date, minutes]) => (minutes > max.minutes ? { date, minutes } : max),
       { date: null, minutes: 0 }
     );
 
     if (maxDay.date) {
       const dayName = new Date(maxDay.date).toLocaleDateString('en-US', { weekday: 'long' });
-      insights.push(`<strong>Busiest Day:</strong> ${dayName} with ${DurationTracker.formatDuration(maxDay.minutes)} in meetings`);
+      insights.push(
+        `<strong>Busiest Day:</strong> ${dayName} with ${DurationTracker.formatDuration(maxDay.minutes)} in meetings`
+      );
     }
 
     // Light day
-    const minDay = Object.entries(breakdown).reduce((min, [date, minutes]) =>
-      (minutes > 0 && (min.minutes === 0 || minutes < min.minutes)) ? { date, minutes } : min,
+    const minDay = Object.entries(breakdown).reduce(
+      (min, [date, minutes]) =>
+        minutes > 0 && (min.minutes === 0 || minutes < min.minutes) ? { date, minutes } : min,
       { date: null, minutes: 0 }
     );
 
     if (minDay.date) {
       const dayName = new Date(minDay.date).toLocaleDateString('en-US', { weekday: 'long' });
-      insights.push(`<strong>Lightest Day:</strong> ${dayName} with ${DurationTracker.formatDuration(minDay.minutes)} in meetings`);
+      insights.push(
+        `<strong>Lightest Day:</strong> ${dayName} with ${DurationTracker.formatDuration(minDay.minutes)} in meetings`
+      );
     }
 
     // Most used platform
     const topPlatform = Object.entries(platformBreakdown).sort((a, b) => b[1] - a[1])[0];
     if (topPlatform) {
-      insights.push(`<strong>Top Platform:</strong> ${topPlatform[0]} (${DurationTracker.formatDuration(topPlatform[1])})`);
+      insights.push(
+        `<strong>Top Platform:</strong> ${topPlatform[0]} (${DurationTracker.formatDuration(topPlatform[1])})`
+      );
     }
 
     // Longest meeting
     if (stats.longestMeeting.minutes > 0) {
-      insights.push(`<strong>Longest Meeting:</strong> ${stats.longestMeeting.formatted} - "${stats.longestMeeting.title}"`);
+      insights.push(
+        `<strong>Longest Meeting:</strong> ${stats.longestMeeting.formatted} - "${stats.longestMeeting.title}"`
+      );
     }
 
     // Weekly average
-    insights.push(`<strong>Daily Average:</strong> ${DurationTracker.formatDuration(stats.week.dailyAverage)} per day`);
+    insights.push(
+      `<strong>Daily Average:</strong> ${DurationTracker.formatDuration(stats.week.dailyAverage)} per day`
+    );
 
     return insights.map(i => `<p>${i}</p>`).join('');
   }
@@ -327,7 +341,7 @@ export class ReportGenerator {
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
     });
   }
 
@@ -340,7 +354,7 @@ export class ReportGenerator {
       day: 'numeric',
       year: 'numeric',
       hour: 'numeric',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   }
 
@@ -360,7 +374,7 @@ export class ReportGenerator {
       await chrome.downloads.download({
         url: url,
         filename: filename,
-        saveAs: true
+        saveAs: true,
       });
 
       logger.debug(`Report downloaded as ${filename}`);

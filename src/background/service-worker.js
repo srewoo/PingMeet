@@ -129,7 +129,7 @@ class PingMeetService {
       // Use a lightweight endpoint to check connectivity
       await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1', {
         method: 'HEAD',
-        mode: 'no-cors'
+        mode: 'no-cors',
       });
       return true;
     } catch (error) {
@@ -142,7 +142,7 @@ class PingMeetService {
    */
   setupMeetingTabTracking() {
     // Track when tabs are closed
-    chrome.tabs.onRemoved.addListener(async (tabId) => {
+    chrome.tabs.onRemoved.addListener(async tabId => {
       if (this.activeMeetingTabId === tabId) {
         logger.debug('Meeting tab closed, stopping duration tracking');
         await DurationTracker.stopTracking();
@@ -175,7 +175,7 @@ class PingMeetService {
       'teams.microsoft.com',
       'webex.com',
       'gotomeeting.com',
-      'bluejeans.com'
+      'bluejeans.com',
     ];
     return meetingPatterns.some(pattern => url.includes(pattern));
   }
@@ -199,7 +199,7 @@ class PingMeetService {
       if (msUntilEnd > 0) {
         // Create alarm to auto-stop tracking at meeting end time + 5 min buffer
         chrome.alarms.create('AUTO_STOP_MEETING_TRACKING', {
-          when: endTime.getTime() + 5 * 60 * 1000
+          when: endTime.getTime() + 5 * 60 * 1000,
         });
         logger.debug('Auto-stop alarm set for', new Date(endTime.getTime() + 5 * 60 * 1000));
       }
@@ -417,16 +417,25 @@ class PingMeetService {
       return true;
     });
 
-    // Filter to only upcoming events (within next 24 hours)
+    // Keep events that start within the next 24 hours AND have not yet ended.
+    // Using end time (not start time) means an in-progress meeting stays in the
+    // list until it's actually over — e.g. a 10:00–10:30 meeting remains visible
+    // until 10:30 rather than vanishing at 10:00.
     const now = new Date();
     const upcoming = filteredEvents.filter(event => {
       if (!event.startTime) return false;
       const startTime = new Date(event.startTime);
-      const hoursUntil = (startTime - now) / TIME.ONE_HOUR_MS;
-      return hoursUntil > 0 && hoursUntil <= 24;
+      // Fall back to a 60-min assumed duration when an event has no end time.
+      const endTime = event.endTime
+        ? new Date(event.endTime)
+        : new Date(startTime.getTime() + 60 * TIME.ONE_MINUTE_MS);
+      const hoursUntilStart = (startTime - now) / TIME.ONE_HOUR_MS;
+      return endTime > now && hoursUntilStart <= 24;
     });
 
-    logger.debug(`Processing ${upcoming.length} upcoming events (API status: Google=${apiStatus.google}, Outlook=${apiStatus.outlook})`);
+    logger.debug(
+      `Processing ${upcoming.length} upcoming events (API status: Google=${apiStatus.google}, Outlook=${apiStatus.outlook})`
+    );
 
     // Deduplicate events from different sources (same event in Google and Outlook)
     const uniqueEvents = this.deduplicateEvents(upcoming);
@@ -502,9 +511,7 @@ class PingMeetService {
 
     const settings = await StorageManager.getSettings();
     const offsetMinutes = this.computeReminderOffset(event, settings);
-    const reminderTime = new Date(
-      startTime.getTime() - offsetMinutes * TIME.ONE_MINUTE_MS
-    );
+    const reminderTime = new Date(startTime.getTime() - offsetMinutes * TIME.ONE_MINUTE_MS);
 
     // Only schedule if reminder time is in the future
     if (reminderTime > new Date()) {
@@ -516,8 +523,7 @@ class PingMeetService {
       // This ensures we can retrieve it when the alarm fires
       await StorageManager.saveEvent(alarmName, event);
 
-      logger.debug(`Scheduled reminder for "${event.title}" at ${reminderTime.toLocaleString()}`
-      );
+      logger.debug(`Scheduled reminder for "${event.title}" at ${reminderTime.toLocaleString()}`);
     } else {
       logger.debug(`Reminder time already passed for "${event.title}"`);
     }
@@ -569,7 +575,14 @@ class PingMeetService {
       // stays current without burning an extra alarm slot.
       try {
         const events = await StorageManager.getEvents();
-        const upcoming = events.filter(e => new Date(e.startTime).getTime() > Date.now());
+        // Count meetings that haven't ended yet (consistent with the list,
+        // which keeps in-progress meetings visible until their end time).
+        const now = Date.now();
+        const upcoming = events.filter(e => {
+          const start = new Date(e.startTime).getTime();
+          const end = e.endTime ? new Date(e.endTime).getTime() : start + 60 * TIME.ONE_MINUTE_MS;
+          return end > now;
+        });
         await this.updateBadge(upcoming.length);
       } catch (e) {
         logger.warn('Badge tick failed', e?.message);
@@ -604,6 +617,12 @@ class PingMeetService {
    * Handle notification click
    */
   async handleNotificationClick(notificationId) {
+    // One-click reconnect notification — body click also triggers re-auth.
+    if (notificationId.startsWith('pingmeet_reauth_')) {
+      await this.handleReconnectNotification(notificationId);
+      return;
+    }
+
     const eventId = notificationId.replace('pingmeet_', '');
     const event = await StorageManager.getEvent(eventId);
 
@@ -619,9 +638,42 @@ class PingMeetService {
    * Handle notification button click
    */
   async handleNotificationButtonClick(notificationId, buttonIndex) {
+    if (notificationId.startsWith('pingmeet_reauth_')) {
+      // "Reconnect" button
+      await this.handleReconnectNotification(notificationId);
+      return;
+    }
     if (buttonIndex === 0) {
       // "Join Now" button
       await this.handleNotificationClick(notificationId);
+    }
+  }
+
+  /**
+   * Re-authenticate the provider encoded in a reconnect notification ID
+   * (format: pingmeet_reauth_<provider>_<mode>_<timestamp>) and re-sync.
+   */
+  async handleReconnectNotification(notificationId) {
+    await chrome.notifications.clear(notificationId);
+    const parts = notificationId.split('_'); // [pingmeet, reauth, provider, mode, ts]
+    const provider = parts[2];
+    const mode = parts[3];
+
+    logger.debug(`Reconnect requested for ${provider} (mode: ${mode})`);
+    const result = await CalendarAPI.reconnect(provider, mode);
+
+    if (result?.success) {
+      logger.debug(`Reconnected ${provider} successfully, re-syncing`);
+      await this.syncFromCalendarAPI();
+      chrome.notifications.create(`pingmeet_reconnected_${Date.now()}`, {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('assets/icons/icon-128.png'),
+        title: 'PingMeet: Reconnected',
+        message: `${provider === 'google' ? 'Google' : 'Outlook'} Calendar is back online.`,
+        priority: 1,
+      });
+    } else {
+      logger.warn(`Reconnect for ${provider} failed: ${result?.error}`);
     }
   }
 
@@ -647,7 +699,11 @@ class PingMeetService {
     if (attendees.length <= 1) return 1;
 
     // Find self / organizer domain to use as the "internal" baseline.
-    const selfEmail = (attendees.find(a => a.self)?.email || event.organizer?.email || '').toLowerCase();
+    const selfEmail = (
+      attendees.find(a => a.self)?.email ||
+      event.organizer?.email ||
+      ''
+    ).toLowerCase();
     const baseDomain = selfEmail.split('@')[1];
     if (!baseDomain) return fallback;
 
@@ -674,8 +730,8 @@ class PingMeetService {
       const e = String(entry).toLowerCase().trim();
       if (!e) return false;
       if (e.startsWith('@')) return email.endsWith(e); // domain match
-      if (e.includes('@')) return email === e;          // exact email
-      return email.endsWith('@' + e);                   // bare domain
+      if (e.includes('@')) return email === e; // exact email
+      return email.endsWith('@' + e); // bare domain
     });
   }
 
@@ -807,15 +863,17 @@ class PingMeetService {
    * @returns {boolean} True if 'a' has more details than 'b'
    */
   hasMoreDetails(a, b) {
-    const scoreA = (a.meetingLink ? 2 : 0) +
-                   (a.attendees?.length || 0) +
-                   (a.description?.length || 0) +
-                   (a.location?.length || 0);
+    const scoreA =
+      (a.meetingLink ? 2 : 0) +
+      (a.attendees?.length || 0) +
+      (a.description?.length || 0) +
+      (a.location?.length || 0);
 
-    const scoreB = (b.meetingLink ? 2 : 0) +
-                   (b.attendees?.length || 0) +
-                   (b.description?.length || 0) +
-                   (b.location?.length || 0);
+    const scoreB =
+      (b.meetingLink ? 2 : 0) +
+      (b.attendees?.length || 0) +
+      (b.description?.length || 0) +
+      (b.location?.length || 0);
 
     return scoreA > scoreB;
   }
@@ -973,3 +1031,26 @@ class PingMeetService {
 // Initialize service
 const service = new PingMeetService();
 service.init();
+
+// MV3 lifecycle listeners must be registered synchronously at the top level,
+// not inside an async init(). Browser launch is the single most important
+// moment to refresh tokens: chrome.storage.session (where access tokens live)
+// was just wiped, so every connected provider needs a silent refresh before
+// the first sync. Without an onStartup listener Chrome may not even spin the
+// worker up at launch.
+chrome.runtime.onStartup.addListener(() => {
+  logger.debug('Browser startup detected — refreshing tokens and re-syncing');
+  service
+    .proactiveTokenRefresh()
+    .then(() => service.syncFromCalendarAPI())
+    .catch(error => logger.error('Error during onStartup refresh', error));
+});
+
+// On install/update, make sure the periodic alarms exist (they survive updates
+// but not always a fresh install before init() has run) and tokens are warm.
+chrome.runtime.onInstalled.addListener(() => {
+  logger.debug('Extension installed/updated — priming connection');
+  service
+    .proactiveTokenRefresh()
+    .catch(error => logger.error('Error during onInstalled refresh', error));
+});

@@ -44,10 +44,14 @@ export class ConflictDetector {
    */
   static eventsOverlap(event1, event2) {
     const start1 = new Date(event1.startTime);
-    const end1 = event1.endTime ? new Date(event1.endTime) : new Date(start1.getTime() + 60 * 60 * 1000); // Default 1 hour
+    const end1 = event1.endTime
+      ? new Date(event1.endTime)
+      : new Date(start1.getTime() + 60 * 60 * 1000); // Default 1 hour
 
     const start2 = new Date(event2.startTime);
-    const end2 = event2.endTime ? new Date(event2.endTime) : new Date(start2.getTime() + 60 * 60 * 1000); // Default 1 hour
+    const end2 = event2.endTime
+      ? new Date(event2.endTime)
+      : new Date(start2.getTime() + 60 * 60 * 1000); // Default 1 hour
 
     return start1 < end2 && start2 < end1;
   }
@@ -68,8 +72,12 @@ export class ConflictDetector {
     }
 
     // Calculate overlap duration
-    const end1 = event1.endTime ? new Date(event1.endTime) : new Date(start1.getTime() + 60 * 60 * 1000);
-    const end2 = event2.endTime ? new Date(event2.endTime) : new Date(start2.getTime() + 60 * 60 * 1000);
+    const end1 = event1.endTime
+      ? new Date(event1.endTime)
+      : new Date(start1.getTime() + 60 * 60 * 1000);
+    const end2 = event2.endTime
+      ? new Date(event2.endTime)
+      : new Date(start2.getTime() + 60 * 60 * 1000);
 
     const overlapStart = new Date(Math.max(start1, start2));
     const overlapEnd = new Date(Math.min(end1, end2));

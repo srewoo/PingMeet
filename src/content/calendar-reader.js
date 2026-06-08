@@ -85,7 +85,7 @@ class CalendarReader {
     this.injectPageScript();
 
     // Listen for messages from injected script (multiple message types)
-    window.addEventListener('message', (event) => {
+    window.addEventListener('message', event => {
       // Standard API data (Fetch/XHR)
       if (event.data?.type === 'PINGMEET_CALENDAR_DATA' && event.data?.source === 'google') {
         logger.debug('Received calendar data from page context');
@@ -183,9 +183,20 @@ class CalendarReader {
 
     // Fields to potentially fill from secondary
     const fields = [
-      'description', 'location', 'attendees', 'organizer', 'organizerName',
-      'meetingLink', 'recurrence', 'status', 'visibility', 'colorId',
-      'htmlLink', 'dialIn', 'conferenceId', 'attachments'
+      'description',
+      'location',
+      'attendees',
+      'organizer',
+      'organizerName',
+      'meetingLink',
+      'recurrence',
+      'status',
+      'visibility',
+      'colorId',
+      'htmlLink',
+      'dialIn',
+      'conferenceId',
+      'attachments',
     ];
 
     fields.forEach(field => {
@@ -193,8 +204,12 @@ class CalendarReader {
         merged[field] = secondary[field];
       }
       // For arrays, merge if primary is empty
-      if (Array.isArray(merged[field]) && merged[field].length === 0 &&
-          Array.isArray(secondary[field]) && secondary[field].length > 0) {
+      if (
+        Array.isArray(merged[field]) &&
+        merged[field].length === 0 &&
+        Array.isArray(secondary[field]) &&
+        secondary[field].length > 0
+      ) {
         merged[field] = secondary[field];
       }
     });
@@ -209,7 +224,7 @@ class CalendarReader {
     try {
       const script = document.createElement('script');
       script.src = chrome.runtime.getURL('src/content/injected-script.js');
-      script.onload = function() {
+      script.onload = function () {
         this.remove();
       };
       (document.head || document.documentElement).appendChild(script);
@@ -250,7 +265,7 @@ class CalendarReader {
 
       const checkInterval = setInterval(() => {
         attempts++;
-        
+
         // Look for various calendar indicators
         const mainElement = document.querySelector('[role="main"]');
         const calendarGrid = document.querySelector('[role="grid"]');
@@ -285,11 +300,7 @@ class CalendarReader {
 
     try {
       // Strategy 1: Read from event chips with data-eventid (most reliable)
-      const eventIdSelectors = [
-        '[data-eventid]',
-        '[data-event-id]',
-        '[data-eid]',
-      ];
+      const eventIdSelectors = ['[data-eventid]', '[data-event-id]', '[data-eid]'];
 
       for (const selector of eventIdSelectors) {
         try {
@@ -327,7 +338,10 @@ class CalendarReader {
             ariaEvents.forEach(el => {
               try {
                 const event = this.parseAriaEvent(el);
-                if (event && !events.find(e => e.title === event.title && e.startTime === event.startTime)) {
+                if (
+                  event &&
+                  !events.find(e => e.title === event.title && e.startTime === event.startTime)
+                ) {
                   events.push(event);
                 }
               } catch (err) {
@@ -341,11 +355,7 @@ class CalendarReader {
       }
 
       // Strategy 3: Look for event links (additional fallback)
-      const linkSelectors = [
-        'a[href*="/eventedit/"]',
-        'a[data-eventid]',
-        'a[href*="/event?eid="]',
-      ];
+      const linkSelectors = ['a[href*="/eventedit/"]', 'a[data-eventid]', 'a[href*="/event?eid="]'];
 
       for (const selector of linkSelectors) {
         try {
@@ -415,7 +425,9 @@ class CalendarReader {
             if (title && title.length > 2 && title.length < 200) {
               // Create a deterministic ID from title and startTime to avoid duplicates
               const hashBase = `${title.toLowerCase().trim()}-${startTime}`;
-              const eventId = `deep-scan-${btoa(hashBase).replace(/[^a-zA-Z0-9]/g, '').slice(0, 20)}`;
+              const eventId = `deep-scan-${btoa(hashBase)
+                .replace(/[^a-zA-Z0-9]/g, '')
+                .slice(0, 20)}`;
 
               const event = {
                 id: eventId,
@@ -453,9 +465,11 @@ class CalendarReader {
       // Get time from aria-label or content
       const ariaLabel = el.getAttribute('aria-label') || el.textContent || '';
       const startTime = this.extractTime(ariaLabel);
-      
+
       // Try to extract end time (usually 1 hour after start by default)
-      const endTime = startTime ? new Date(new Date(startTime).getTime() + 60 * 60 * 1000).toISOString() : null;
+      const endTime = startTime
+        ? new Date(new Date(startTime).getTime() + 60 * 60 * 1000).toISOString()
+        : null;
 
       // Get meeting link
       const meetingLink = this.extractMeetingLink(el);
@@ -491,8 +505,10 @@ class CalendarReader {
       const startTime = this.extractTime(timeStr);
 
       if (!startTime) return null;
-      
-      const endTime = startTime ? new Date(new Date(startTime).getTime() + 60 * 60 * 1000).toISOString() : null;
+
+      const endTime = startTime
+        ? new Date(new Date(startTime).getTime() + 60 * 60 * 1000).toISOString()
+        : null;
 
       return {
         id: `aria-${title.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}`,
@@ -513,9 +529,10 @@ class CalendarReader {
    */
   parseEventLink(el) {
     try {
-      const eventId = el.getAttribute('data-eventid') || 
-                     el.href?.match(/eventedit\/([^?]+)/)?.[1] ||
-                     `link-${Date.now()}`;
+      const eventId =
+        el.getAttribute('data-eventid') ||
+        el.href?.match(/eventedit\/([^?]+)/)?.[1] ||
+        `link-${Date.now()}`;
 
       const title = this.extractTitle(el);
       if (!title) return null;
@@ -540,13 +557,15 @@ class CalendarReader {
    */
   extractTitle(el) {
     // Try various selectors
-    const titleEl = el.querySelector('[data-eventchip]') ||
-                   el.querySelector('[role="heading"]') ||
-                   el.querySelector('span');
+    const titleEl =
+      el.querySelector('[data-eventchip]') ||
+      el.querySelector('[role="heading"]') ||
+      el.querySelector('span');
 
-    let title = titleEl?.textContent?.trim() ||
-               el.getAttribute('aria-label')?.split(',')[0]?.trim() ||
-               el.textContent?.trim();
+    let title =
+      titleEl?.textContent?.trim() ||
+      el.getAttribute('aria-label')?.split(',')[0]?.trim() ||
+      el.textContent?.trim();
 
     // Clean up title
     if (title) {
@@ -567,10 +586,10 @@ class CalendarReader {
       // Match various time patterns
       // Patterns: "10:30 AM", "2:45 PM", "14:30", "10h30", "10.30"
       const timePatterns = [
-        /(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)/,  // 12-hour with meridiem
-        /(\d{1,2}):(\d{2})/,                   // 24-hour or 12-hour without meridiem
-        /(\d{1,2})h(\d{2})/i,                  // French format (10h30)
-        /(\d{1,2})\.(\d{2})/,                  // Dot separator (10.30)
+        /(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)/, // 12-hour with meridiem
+        /(\d{1,2}):(\d{2})/, // 24-hour or 12-hour without meridiem
+        /(\d{1,2})h(\d{2})/i, // French format (10h30)
+        /(\d{1,2})\.(\d{2})/, // Dot separator (10.30)
       ];
 
       let timeMatch = null;
@@ -595,26 +614,98 @@ class CalendarReader {
 
       // Multi-language month names
       const monthNames = {
-        en: ['january', 'february', 'march', 'april', 'may', 'june',
-             'july', 'august', 'september', 'october', 'november', 'december'],
-        es: ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-             'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'],
-        fr: ['janvier', 'février', 'mars', 'avril', 'mai', 'juin',
-             'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'],
-        de: ['januar', 'februar', 'märz', 'april', 'mai', 'juni',
-             'juli', 'august', 'september', 'oktober', 'november', 'dezember'],
-        it: ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
-             'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'],
-        pt: ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-             'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'],
+        en: [
+          'january',
+          'february',
+          'march',
+          'april',
+          'may',
+          'june',
+          'july',
+          'august',
+          'september',
+          'october',
+          'november',
+          'december',
+        ],
+        es: [
+          'enero',
+          'febrero',
+          'marzo',
+          'abril',
+          'mayo',
+          'junio',
+          'julio',
+          'agosto',
+          'septiembre',
+          'octubre',
+          'noviembre',
+          'diciembre',
+        ],
+        fr: [
+          'janvier',
+          'février',
+          'mars',
+          'avril',
+          'mai',
+          'juin',
+          'juillet',
+          'août',
+          'septembre',
+          'octobre',
+          'novembre',
+          'décembre',
+        ],
+        de: [
+          'januar',
+          'februar',
+          'märz',
+          'april',
+          'mai',
+          'juni',
+          'juli',
+          'august',
+          'september',
+          'oktober',
+          'november',
+          'dezember',
+        ],
+        it: [
+          'gennaio',
+          'febbraio',
+          'marzo',
+          'aprile',
+          'maggio',
+          'giugno',
+          'luglio',
+          'agosto',
+          'settembre',
+          'ottobre',
+          'novembre',
+          'dicembre',
+        ],
+        pt: [
+          'janeiro',
+          'fevereiro',
+          'março',
+          'abril',
+          'maio',
+          'junho',
+          'julho',
+          'agosto',
+          'setembro',
+          'outubro',
+          'novembro',
+          'dezembro',
+        ],
       };
 
       // Try different date patterns
       const datePatterns = [
-        /(\w+)\s+(\d{1,2})(?:,?\s*(\d{4}))?/,  // "January 15, 2024" or "January 15"
-        /(\d{1,2})\s+(\w+)(?:,?\s*(\d{4}))?/,  // "15 January 2024" or "15 January"
+        /(\w+)\s+(\d{1,2})(?:,?\s*(\d{4}))?/, // "January 15, 2024" or "January 15"
+        /(\d{1,2})\s+(\w+)(?:,?\s*(\d{4}))?/, // "15 January 2024" or "15 January"
         /(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/, // "1/15/2024" or "15/1/2024"
-        /(\d{1,2})-(\d{1,2})(?:-(\d{2,4}))?/,  // "1-15-2024" or "15-1-2024"
+        /(\d{1,2})-(\d{1,2})(?:-(\d{2,4}))?/, // "1-15-2024" or "15-1-2024"
       ];
 
       for (const pattern of datePatterns) {
@@ -630,9 +721,7 @@ class CalendarReader {
           // Check against all language month names
           let monthIndex = -1;
           for (const lang in monthNames) {
-            monthIndex = monthNames[lang].findIndex(m =>
-              monthName.startsWith(m.substring(0, 3))
-            );
+            monthIndex = monthNames[lang].findIndex(m => monthName.startsWith(m.substring(0, 3)));
             if (monthIndex !== -1) break;
           }
 
@@ -653,9 +742,11 @@ class CalendarReader {
           // Numeric date format
           const num1 = parseInt(dateMatch[1]);
           const num2 = parseInt(dateMatch[2]);
-          const year = dateMatch[3] ?
-            (dateMatch[3].length === 2 ? 2000 + parseInt(dateMatch[3]) : parseInt(dateMatch[3])) :
-            today.getFullYear();
+          const year = dateMatch[3]
+            ? dateMatch[3].length === 2
+              ? 2000 + parseInt(dateMatch[3])
+              : parseInt(dateMatch[3])
+            : today.getFullYear();
 
           // Determine if it's MM/DD or DD/MM based on locale
           const locale = navigator.language || 'en-US';
@@ -727,9 +818,20 @@ class CalendarReader {
     }
 
     // Check for anchor tags with any meeting platform domain
-    const platforms = ['meet.google.com', 'zoom.us', 'zoom.com', 'teams.microsoft.com',
-                      'webex.com', 'gotomeeting.com', 'slack.com', 'discord.gg',
-                      'discord.com', 'skype.com', 'bluejeans.com', 'jit.si'];
+    const platforms = [
+      'meet.google.com',
+      'zoom.us',
+      'zoom.com',
+      'teams.microsoft.com',
+      'webex.com',
+      'gotomeeting.com',
+      'slack.com',
+      'discord.gg',
+      'discord.com',
+      'skype.com',
+      'bluejeans.com',
+      'jit.si',
+    ];
 
     for (const platform of platforms) {
       const anchor = el.querySelector(`a[href*="${platform}"]`);
@@ -790,7 +892,9 @@ class CalendarReader {
         // Extract meeting link from multiple sources
         let meetingLink = item.hangoutLink || null;
         if (!meetingLink && item.conferenceData?.entryPoints) {
-          const videoEntry = item.conferenceData.entryPoints.find(ep => ep.entryPointType === 'video');
+          const videoEntry = item.conferenceData.entryPoints.find(
+            ep => ep.entryPointType === 'video'
+          );
           meetingLink = videoEntry?.uri || item.conferenceData.entryPoints[0]?.uri || null;
         }
         // Also check description for meeting links
@@ -858,7 +962,7 @@ class CalendarReader {
       conferenceId: null,
       pin: null,
       provider: null,
-      entryPoints: []
+      entryPoints: [],
     };
 
     // From conference data
@@ -878,7 +982,7 @@ class CalendarReader {
             uri: ep.uri,
             label: ep.label,
             pin: ep.pin,
-            regionCode: ep.regionCode
+            regionCode: ep.regionCode,
           });
 
           if (ep.entryPointType === 'phone') {
@@ -886,7 +990,7 @@ class CalendarReader {
               number: ep.uri?.replace('tel:', ''),
               label: ep.label,
               regionCode: ep.regionCode,
-              pin: ep.pin
+              pin: ep.pin,
             });
             if (ep.pin) {
               dialIn.pin = ep.pin;
@@ -922,15 +1026,15 @@ class CalendarReader {
     if (!text) return [];
 
     const phonePatterns = [
-      /\+1[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/g,           // US: +1 (xxx) xxx-xxxx
-      /\+44[\s.-]?\d{4}[\s.-]?\d{6}/g,                             // UK: +44 xxxx xxxxxx
-      /\+49[\s.-]?\d{3,4}[\s.-]?\d{6,8}/g,                         // Germany
+      /\+1[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/g, // US: +1 (xxx) xxx-xxxx
+      /\+44[\s.-]?\d{4}[\s.-]?\d{6}/g, // UK: +44 xxxx xxxxxx
+      /\+49[\s.-]?\d{3,4}[\s.-]?\d{6,8}/g, // Germany
       /\+33[\s.-]?\d{1}[\s.-]?\d{2}[\s.-]?\d{2}[\s.-]?\d{2}[\s.-]?\d{2}/g, // France
-      /\+61[\s.-]?\d{1}[\s.-]?\d{4}[\s.-]?\d{4}/g,                 // Australia
-      /\+91[\s.-]?\d{5}[\s.-]?\d{5}/g,                             // India
-      /\+\d{1,3}[\s.-]?\d{1,4}[\s.-]?\d{3,4}[\s.-]?\d{3,4}/g,     // Generic international
-      /\(\d{3}\)[\s.-]?\d{3}[\s.-]?\d{4}/g,                        // US without country code
-      /\d{3}[\s.-]\d{3}[\s.-]\d{4}/g,                              // Simple US format
+      /\+61[\s.-]?\d{1}[\s.-]?\d{4}[\s.-]?\d{4}/g, // Australia
+      /\+91[\s.-]?\d{5}[\s.-]?\d{5}/g, // India
+      /\+\d{1,3}[\s.-]?\d{1,4}[\s.-]?\d{3,4}[\s.-]?\d{3,4}/g, // Generic international
+      /\(\d{3}\)[\s.-]?\d{3}[\s.-]?\d{4}/g, // US without country code
+      /\d{3}[\s.-]\d{3}[\s.-]\d{4}/g, // Simple US format
     ];
 
     const numbers = new Set();
@@ -952,17 +1056,17 @@ class CalendarReader {
       meetingId: null,
       passcode: null,
       pin: null,
-      dialInNumbers: []
+      dialInNumbers: [],
     };
 
     if (!text) return info;
 
     // Meeting ID patterns
     const meetingIdPatterns = [
-      /Meeting ID[:\s]*(\d{3}[\s-]?\d{4}[\s-]?\d{4})/i,          // Zoom style
-      /Meeting ID[:\s]*(\d{9,12})/i,                               // Generic
+      /Meeting ID[:\s]*(\d{3}[\s-]?\d{4}[\s-]?\d{4})/i, // Zoom style
+      /Meeting ID[:\s]*(\d{9,12})/i, // Generic
       /Conference ID[:\s]*(\d+)/i,
-      /Meeting code[:\s]*([a-z]{3}-[a-z]{4}-[a-z]{3})/i,          // Google Meet style
+      /Meeting code[:\s]*([a-z]{3}-[a-z]{4}-[a-z]{3})/i, // Google Meet style
       /Webinar ID[:\s]*(\d+)/i,
     ];
 
@@ -991,11 +1095,7 @@ class CalendarReader {
     }
 
     // PIN patterns
-    const pinPatterns = [
-      /PIN[:\s]*(\d{4,})/i,
-      /Host PIN[:\s]*(\d+)/i,
-      /Attendee PIN[:\s]*(\d+)/i,
-    ];
+    const pinPatterns = [/PIN[:\s]*(\d{4,})/i, /Host PIN[:\s]*(\d+)/i, /Attendee PIN[:\s]*(\d+)/i];
 
     for (const pattern of pinPatterns) {
       const match = text.match(pattern);
@@ -1025,10 +1125,10 @@ class CalendarReader {
       /https?:\/\/join\.skype\.com\/[^\s"<>]*/gi,
       /https?:\/\/bluejeans\.com\/\d+/gi,
       /https?:\/\/meet\.jit\.si\/[^\s"<>]*/gi,
-      /https?:\/\/chime\.aws\/\d+/gi,                              // Amazon Chime
-      /https?:\/\/[\w-]+\.whereby\.com\/[^\s"<>]*/gi,              // Whereby
-      /https?:\/\/app\.livestorm\.co\/[^\s"<>]*/gi,                // Livestorm
-      /https?:\/\/[\w-]+\.webinarjam\.com\/[^\s"<>]*/gi,           // WebinarJam
+      /https?:\/\/chime\.aws\/\d+/gi, // Amazon Chime
+      /https?:\/\/[\w-]+\.whereby\.com\/[^\s"<>]*/gi, // Whereby
+      /https?:\/\/app\.livestorm\.co\/[^\s"<>]*/gi, // Livestorm
+      /https?:\/\/[\w-]+\.webinarjam\.com\/[^\s"<>]*/gi, // WebinarJam
     ];
 
     for (const pattern of patterns) {
@@ -1049,17 +1149,19 @@ class CalendarReader {
     if (this.contextInvalidated) return;
 
     // Watch for event detail popups/dialogs
-    this.popupObserver = new MutationObserver((mutations) => {
+    this.popupObserver = new MutationObserver(mutations => {
       if (this.contextInvalidated) return;
 
       mutations.forEach(mutation => {
         mutation.addedNodes.forEach(node => {
           if (node.nodeType === Node.ELEMENT_NODE) {
             // Check if this is an event popup/dialog
-            if (node.matches('[role="dialog"]') ||
-                node.querySelector('[role="dialog"]') ||
-                node.matches('[data-eventid]') ||
-                node.classList?.contains('event-popup')) {
+            if (
+              node.matches('[role="dialog"]') ||
+              node.querySelector('[role="dialog"]') ||
+              node.matches('[data-eventid]') ||
+              node.classList?.contains('event-popup')
+            ) {
               setTimeout(() => this.scrapeEventPopup(node), 100);
             }
           }
@@ -1069,7 +1171,7 @@ class CalendarReader {
 
     this.popupObserver.observe(document.body, {
       childList: true,
-      subtree: true
+      subtree: true,
     });
 
     logger.debug('Event popup observer active');
@@ -1080,17 +1182,17 @@ class CalendarReader {
    */
   scrapeEventPopup(popupElement) {
     try {
-      const dialog = popupElement.matches('[role="dialog"]') ?
-                    popupElement :
-                    popupElement.querySelector('[role="dialog"]');
+      const dialog = popupElement.matches('[role="dialog"]')
+        ? popupElement
+        : popupElement.querySelector('[role="dialog"]');
 
       if (!dialog) return;
 
       // Extract event ID
-      const eventIdEl = dialog.querySelector('[data-eventid]') ||
-                       dialog.querySelector('[data-event-id]');
-      const eventId = eventIdEl?.getAttribute('data-eventid') ||
-                     eventIdEl?.getAttribute('data-event-id');
+      const eventIdEl =
+        dialog.querySelector('[data-eventid]') || dialog.querySelector('[data-event-id]');
+      const eventId =
+        eventIdEl?.getAttribute('data-eventid') || eventIdEl?.getAttribute('data-event-id');
 
       if (!eventId) return;
 
@@ -1101,13 +1203,14 @@ class CalendarReader {
 
       const details = {
         id: eventId,
-        source: 'google-dom'
+        source: 'google-dom',
       };
 
       // Scrape title
-      const titleEl = dialog.querySelector('[data-eventchip]') ||
-                     dialog.querySelector('[role="heading"]') ||
-                     dialog.querySelector('h1, h2, h3');
+      const titleEl =
+        dialog.querySelector('[data-eventchip]') ||
+        dialog.querySelector('[role="heading"]') ||
+        dialog.querySelector('h1, h2, h3');
       if (titleEl) {
         details.title = titleEl.textContent?.trim();
       }
@@ -1118,7 +1221,7 @@ class CalendarReader {
         '[aria-label*="description"]',
         '.event-description',
         '[data-content="description"]',
-        'div[dir="ltr"]' // Google Calendar often uses this
+        'div[dir="ltr"]', // Google Calendar often uses this
       ];
 
       for (const selector of descriptionSelectors) {
@@ -1134,7 +1237,7 @@ class CalendarReader {
         '[data-location]',
         '[aria-label*="location"]',
         '[aria-label*="where"]',
-        '.event-location'
+        '.event-location',
       ];
 
       for (const selector of locationSelectors) {
@@ -1151,23 +1254,24 @@ class CalendarReader {
         '[data-attendee]',
         '[aria-label*="guest"]',
         '.guest-list span',
-        '[data-email]'
+        '[data-email]',
       ];
 
       const attendees = [];
       for (const selector of attendeeSelectors) {
         const attendeeEls = dialog.querySelectorAll(selector);
         attendeeEls.forEach(el => {
-          const email = el.getAttribute('data-guest-email') ||
-                       el.getAttribute('data-email') ||
-                       el.textContent?.match(/[\w.-]+@[\w.-]+\.\w+/)?.[0];
+          const email =
+            el.getAttribute('data-guest-email') ||
+            el.getAttribute('data-email') ||
+            el.textContent?.match(/[\w.-]+@[\w.-]+\.\w+/)?.[0];
           const name = el.textContent?.replace(email || '', '').trim() || email?.split('@')[0];
 
           if (email || name) {
             attendees.push({
               email: email || null,
               name: name,
-              responseStatus: el.getAttribute('data-response') || 'unknown'
+              responseStatus: el.getAttribute('data-response') || 'unknown',
             });
           }
         });
@@ -1181,15 +1285,16 @@ class CalendarReader {
       const organizerSelectors = [
         '[data-organizer]',
         '[aria-label*="organizer"]',
-        '.organizer-name'
+        '.organizer-name',
       ];
 
       for (const selector of organizerSelectors) {
         const orgEl = dialog.querySelector(selector);
         if (orgEl) {
           details.organizerName = orgEl.textContent?.trim();
-          const orgEmail = orgEl.getAttribute('data-email') ||
-                          orgEl.textContent?.match(/[\w.-]+@[\w.-]+\.\w+/)?.[0];
+          const orgEmail =
+            orgEl.getAttribute('data-email') ||
+            orgEl.textContent?.match(/[\w.-]+@[\w.-]+\.\w+/)?.[0];
           if (orgEmail) details.organizer = orgEmail;
           break;
         }
@@ -1201,7 +1306,7 @@ class CalendarReader {
         'a[href*="zoom"]',
         'a[href*="teams.microsoft"]',
         'a[href*="webex"]',
-        '[data-meeting-link]'
+        '[data-meeting-link]',
       ];
 
       for (const selector of linkSelectors) {
@@ -1213,19 +1318,15 @@ class CalendarReader {
       }
 
       // Scrape time
-      const timeSelectors = [
-        '[data-daterange]',
-        '[aria-label*="time"]',
-        'time',
-        '.event-time'
-      ];
+      const timeSelectors = ['[data-daterange]', '[aria-label*="time"]', 'time', '.event-time'];
 
       for (const selector of timeSelectors) {
         const timeEl = dialog.querySelector(selector);
         if (timeEl) {
-          const timeText = timeEl.textContent?.trim() ||
-                          timeEl.getAttribute('datetime') ||
-                          timeEl.getAttribute('aria-label');
+          const timeText =
+            timeEl.textContent?.trim() ||
+            timeEl.getAttribute('datetime') ||
+            timeEl.getAttribute('aria-label');
           if (timeText) {
             const startTime = this.extractTime(timeText);
             if (startTime) details.startTime = startTime;
@@ -1243,9 +1344,7 @@ class CalendarReader {
         const existingEvent = this.lastEvents.find(e => e.id === eventId);
         if (existingEvent) {
           const merged = this.mergeEventData(existingEvent, details);
-          const updatedEvents = this.lastEvents.map(e =>
-            e.id === eventId ? merged : e
-          );
+          const updatedEvents = this.lastEvents.map(e => (e.id === eventId ? merged : e));
           this.sendToBackground(updatedEvents);
         }
       }
@@ -1306,8 +1405,14 @@ class CalendarReader {
    */
   hasChanges(newEvents) {
     if (newEvents.length !== this.lastEvents.length) return true;
-    const oldIds = this.lastEvents.map(e => e.id).sort().join(',');
-    const newIds = newEvents.map(e => e.id).sort().join(',');
+    const oldIds = this.lastEvents
+      .map(e => e.id)
+      .sort()
+      .join(',');
+    const newIds = newEvents
+      .map(e => e.id)
+      .sort()
+      .join(',');
     return oldIds !== newIds;
   }
 
@@ -1330,38 +1435,39 @@ class CalendarReader {
     }
 
     try {
-      chrome.runtime.sendMessage(
-        { type: 'CALENDAR_EVENTS', events: events },
-        (_response) => {
-          // Double-check context validity before checking lastError
-          if (!this.isContextValid()) {
-            this.handleContextInvalidation();
-            return;
-          }
-
-          if (chrome.runtime.lastError) {
-            const error = chrome.runtime.lastError.message || '';
-
-            // Check if context was invalidated
-            if (error.includes('Extension context invalidated') || 
-                error.includes('message port closed') ||
-                error.includes('receiving end does not exist')) {
-              logger.warn('Extension context invalidated. Please refresh the page.');
-              this.handleContextInvalidation();
-            } else {
-              logger.error('Error sending events', chrome.runtime.lastError);
-            }
-          } else {
-            logger.debug(`Sent ${events.length} events to background`);
-          }
+      chrome.runtime.sendMessage({ type: 'CALENDAR_EVENTS', events: events }, _response => {
+        // Double-check context validity before checking lastError
+        if (!this.isContextValid()) {
+          this.handleContextInvalidation();
+          return;
         }
-      );
+
+        if (chrome.runtime.lastError) {
+          const error = chrome.runtime.lastError.message || '';
+
+          // Check if context was invalidated
+          if (
+            error.includes('Extension context invalidated') ||
+            error.includes('message port closed') ||
+            error.includes('receiving end does not exist')
+          ) {
+            logger.warn('Extension context invalidated. Please refresh the page.');
+            this.handleContextInvalidation();
+          } else {
+            logger.error('Error sending events', chrome.runtime.lastError);
+          }
+        } else {
+          logger.debug(`Sent ${events.length} events to background`);
+        }
+      });
     } catch (error) {
       logger.error('Failed to send message', error);
       // Check if it's a context invalidation error
-      if (error.message && 
-          (error.message.includes('Extension context invalidated') || 
-           error.message.includes('Cannot access'))){
+      if (
+        error.message &&
+        (error.message.includes('Extension context invalidated') ||
+          error.message.includes('Cannot access'))
+      ) {
         this.handleContextInvalidation();
       }
     }
@@ -1502,7 +1608,7 @@ class CalendarReader {
     // Add click handler to button
     const reloadBtn = notification.querySelector('#pingmeet-reload-btn');
     if (reloadBtn) {
-      reloadBtn.onclick = (e) => {
+      reloadBtn.onclick = e => {
         e.stopPropagation();
         window.location.reload();
       };

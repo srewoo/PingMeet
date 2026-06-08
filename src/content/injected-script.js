@@ -10,7 +10,7 @@ import { logger } from '../utils/logger.js';
  * 4. LocalStorage/SessionStorage reading
  */
 
-(function() {
+(function () {
   'use strict';
 
   logger.debug('Injected script running in page context (Enhanced v2)');
@@ -20,27 +20,32 @@ import { logger } from '../utils/logger.js';
   // ============================================
   const originalFetch = window.fetch;
 
-  window.fetch = async function(...args) {
+  window.fetch = async function (...args) {
     const response = await originalFetch.apply(this, args);
 
     try {
       const url = args[0]?.toString() || '';
 
       // Google Calendar API - catch multiple patterns
-      if ((url.includes('calendar.google.com') || url.includes('googleapis.com/calendar')) &&
-          (url.includes('/events') || url.includes('calendarList'))) {
+      if (
+        (url.includes('calendar.google.com') || url.includes('googleapis.com/calendar')) &&
+        (url.includes('/events') || url.includes('calendarList'))
+      ) {
         const clone = response.clone();
         const data = await clone.json().catch(() => null);
 
         if (data) {
           logger.debug('Intercepted Google Calendar API:', url);
           const enhancedData = enhanceGoogleCalendarData(data);
-          window.postMessage({
-            type: 'PINGMEET_CALENDAR_DATA',
-            source: 'google',
-            data: enhancedData,
-            url: url
-          }, '*');
+          window.postMessage(
+            {
+              type: 'PINGMEET_CALENDAR_DATA',
+              source: 'google',
+              data: enhancedData,
+              url: url,
+            },
+            '*'
+          );
         }
       }
 
@@ -52,12 +57,15 @@ import { logger } from '../utils/logger.js';
         if (data) {
           logger.debug('Intercepted Outlook API:', url);
           const enhancedData = enhanceOutlookData(data);
-          window.postMessage({
-            type: 'PINGMEET_CALENDAR_DATA',
-            source: 'outlook',
-            data: enhancedData,
-            url: url
-          }, '*');
+          window.postMessage(
+            {
+              type: 'PINGMEET_CALENDAR_DATA',
+              source: 'outlook',
+              data: enhancedData,
+              url: url,
+            },
+            '*'
+          );
         }
       }
     } catch (e) {
@@ -73,31 +81,36 @@ import { logger } from '../utils/logger.js';
   const originalXHROpen = XMLHttpRequest.prototype.open;
   const originalXHRSend = XMLHttpRequest.prototype.send;
 
-  XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+  XMLHttpRequest.prototype.open = function (method, url, ...rest) {
     this._pingmeetUrl = url;
     this._pingmeetMethod = method;
     return originalXHROpen.apply(this, [method, url, ...rest]);
   };
 
-  XMLHttpRequest.prototype.send = function(body) {
-    this.addEventListener('load', function() {
+  XMLHttpRequest.prototype.send = function (body) {
+    this.addEventListener('load', function () {
       try {
         const url = this._pingmeetUrl || '';
 
         // Google Calendar XHR
-        if ((url.includes('calendar.google.com') || url.includes('googleapis.com/calendar')) &&
-            (url.includes('/events') || url.includes('calendarList'))) {
+        if (
+          (url.includes('calendar.google.com') || url.includes('googleapis.com/calendar')) &&
+          (url.includes('/events') || url.includes('calendarList'))
+        ) {
           const data = JSON.parse(this.responseText);
           if (data) {
             logger.debug('Intercepted Google Calendar XHR:', url);
             const enhancedData = enhanceGoogleCalendarData(data);
-            window.postMessage({
-              type: 'PINGMEET_CALENDAR_DATA',
-              source: 'google',
-              data: enhancedData,
-              url: url,
-              method: 'xhr'
-            }, '*');
+            window.postMessage(
+              {
+                type: 'PINGMEET_CALENDAR_DATA',
+                source: 'google',
+                data: enhancedData,
+                url: url,
+                method: 'xhr',
+              },
+              '*'
+            );
           }
         }
 
@@ -107,13 +120,16 @@ import { logger } from '../utils/logger.js';
           if (data) {
             logger.debug('Intercepted Outlook XHR:', url);
             const enhancedData = enhanceOutlookData(data);
-            window.postMessage({
-              type: 'PINGMEET_CALENDAR_DATA',
-              source: 'outlook',
-              data: enhancedData,
-              url: url,
-              method: 'xhr'
-            }, '*');
+            window.postMessage(
+              {
+                type: 'PINGMEET_CALENDAR_DATA',
+                source: 'outlook',
+                data: enhancedData,
+                url: url,
+                method: 'xhr',
+              },
+              '*'
+            );
           }
         }
       } catch (e) {
@@ -131,17 +147,19 @@ import { logger } from '../utils/logger.js';
       const events = [];
 
       // Find React root
-      const reactRoot = document.querySelector('[data-reactroot]') ||
-                       document.getElementById('root') ||
-                       document.getElementById('app');
+      const reactRoot =
+        document.querySelector('[data-reactroot]') ||
+        document.getElementById('root') ||
+        document.getElementById('app');
 
       if (!reactRoot) return events;
 
       // Look for React fiber
-      const fiberKey = Object.keys(reactRoot).find(key =>
-        key.startsWith('__reactFiber$') ||
-        key.startsWith('__reactInternalInstance$') ||
-        key.startsWith('__reactContainer$')
+      const fiberKey = Object.keys(reactRoot).find(
+        key =>
+          key.startsWith('__reactFiber$') ||
+          key.startsWith('__reactInternalInstance$') ||
+          key.startsWith('__reactContainer$')
       );
 
       if (fiberKey) {
@@ -150,7 +168,9 @@ import { logger } from '../utils/logger.js';
       }
 
       // Also check for event data in DOM elements
-      const eventElements = document.querySelectorAll('[data-eventid], [data-event-id], [data-eid]');
+      const eventElements = document.querySelectorAll(
+        '[data-eventid], [data-event-id], [data-eid]'
+      );
       eventElements.forEach(el => {
         const elFiberKey = Object.keys(el).find(key => key.startsWith('__reactFiber$'));
         if (elFiberKey) {
@@ -161,10 +181,13 @@ import { logger } from '../utils/logger.js';
 
       if (events.length > 0) {
         logger.debug(`Extracted ${events.length} events from React state`);
-        window.postMessage({
-          type: 'PINGMEET_REACT_STATE',
-          events: events
-        }, '*');
+        window.postMessage(
+          {
+            type: 'PINGMEET_REACT_STATE',
+            events: events,
+          },
+          '*'
+        );
       }
 
       return events;
@@ -230,7 +253,8 @@ import { logger } from '../utils/logger.js';
       description: raw.description || raw.body || raw.notes,
       location: raw.location?.displayName || raw.location || raw.place,
       attendees: raw.attendees || raw.participants || [],
-      meetingLink: raw.hangoutLink || raw.conferenceData?.entryPoints?.[0]?.uri || raw.onlineMeeting?.joinUrl,
+      meetingLink:
+        raw.hangoutLink || raw.conferenceData?.entryPoints?.[0]?.uri || raw.onlineMeeting?.joinUrl,
       organizer: raw.organizer?.email || raw.organizer?.displayName || raw.creator?.email,
       organizerName: raw.organizer?.displayName || raw.creator?.displayName,
       recurrence: raw.recurrence,
@@ -238,7 +262,7 @@ import { logger } from '../utils/logger.js';
       visibility: raw.visibility,
       colorId: raw.colorId,
       htmlLink: raw.htmlLink,
-      source: 'react-state'
+      source: 'react-state',
     };
   }
 
@@ -279,10 +303,13 @@ import { logger } from '../utils/logger.js';
 
       if (events.length > 0) {
         logger.debug(`Found ${events.length} events in storage`);
-        window.postMessage({
-          type: 'PINGMEET_STORAGE_DATA',
-          events: events
-        }, '*');
+        window.postMessage(
+          {
+            type: 'PINGMEET_STORAGE_DATA',
+            events: events,
+          },
+          '*'
+        );
       }
 
       return events;
@@ -386,7 +413,7 @@ import { logger } from '../utils/logger.js';
       conferenceId: null,
       pin: null,
       passcode: null,
-      entryPoints: []
+      entryPoints: [],
     };
 
     // Extract entry points
@@ -397,7 +424,7 @@ import { logger } from '../utils/logger.js';
           uri: ep.uri,
           label: ep.label,
           pin: ep.pin,
-          regionCode: ep.regionCode
+          regionCode: ep.regionCode,
         });
 
         if (ep.entryPointType === 'phone') {
@@ -405,7 +432,7 @@ import { logger } from '../utils/logger.js';
             number: ep.uri?.replace('tel:', ''),
             label: ep.label,
             regionCode: ep.regionCode,
-            pin: ep.pin
+            pin: ep.pin,
           });
         }
       });
@@ -433,20 +460,20 @@ import { logger } from '../utils/logger.js';
       conferenceId: onlineMeeting.conferenceId,
       joinUrl: onlineMeeting.joinUrl,
       tollNumber: onlineMeeting.tollNumber,
-      tollFreeNumber: onlineMeeting.tollFreeNumber
+      tollFreeNumber: onlineMeeting.tollFreeNumber,
     };
 
     if (onlineMeeting.tollNumber) {
       dialIn.phoneNumbers.push({
         number: onlineMeeting.tollNumber,
-        type: 'toll'
+        type: 'toll',
       });
     }
 
     if (onlineMeeting.tollFreeNumber) {
       dialIn.phoneNumbers.push({
         number: onlineMeeting.tollFreeNumber,
-        type: 'tollFree'
+        type: 'tollFree',
       });
     }
 
@@ -455,7 +482,7 @@ import { logger } from '../utils/logger.js';
         dialIn.phoneNumbers.push({
           number: phone.number,
           type: phone.type,
-          region: phone.region
+          region: phone.region,
         });
       });
     }
@@ -487,7 +514,7 @@ import { logger } from '../utils/logger.js';
   setInterval(runExtractionMethods, 60000);
 
   // Listen for manual extraction requests
-  window.addEventListener('message', (event) => {
+  window.addEventListener('message', event => {
     if (event.data?.type === 'PINGMEET_REQUEST_EXTRACTION') {
       runExtractionMethods();
     }
@@ -495,4 +522,3 @@ import { logger } from '../utils/logger.js';
 
   logger.debug('Enhanced injection complete - Fetch, XHR, React, Storage interception active');
 })();
-

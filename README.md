@@ -24,13 +24,19 @@ PingMeet is a Chrome Extension that monitors your Google Calendar and alerts you
 
 ## 📋 Prerequisites
 
-For PingMeet to work:
+For PingMeet to work, do **either** of the following:
 
-1. **Keep Google Calendar OR Outlook Calendar open** in at least one Chrome tab
-   - Google Calendar: calendar.google.com
-   - Outlook Calendar: outlook.office.com or outlook.live.com
-2. **Allow notifications** when prompted by Chrome
-3. **Allow sound** (optional, but recommended)
+- **Recommended:** Click the extension icon and **Connect** your Google or
+  Outlook account (one-click OAuth). Events then sync in the background — no tab
+  needs to stay open. PingMeet keeps you signed in across browser restarts.
+- **Or:** Keep a calendar tab open in Chrome and PingMeet will read from it.
+  - Google Calendar: calendar.google.com
+  - Outlook Calendar: outlook.office.com or outlook.live.com
+
+Then:
+
+1. **Allow notifications** when prompted by Chrome
+2. **Allow sound** (optional, but recommended)
 
 ## 🎯 How It Works
 
@@ -56,11 +62,25 @@ Click the extension icon to configure:
 
 ## 🔒 Privacy & Security
 
-- **No OAuth Required** - Works by reading your open calendar tab
+PingMeet supports two ways to read your calendar:
+
+1. **OAuth API access (recommended)** — Connect with Google or Outlook in one
+   click. PingMeet authenticates via the official OAuth flow (`chrome.identity`),
+   reads events directly from the Google Calendar / Microsoft Graph APIs, and
+   refreshes tokens automatically so you stay connected.
+2. **Open-tab reading (fallback)** — If you don't connect an account, PingMeet
+   reads events from a Google/Outlook Calendar tab you keep open.
+
+Security properties in both modes:
+
 - **No Data Collection** - Everything stays local on your device
-- **Minimal Permissions** - Only accesses calendar sites you use
-- **No External Servers** - All processing happens in your browser
-- **Works Offline** - Once events are loaded, reminders work without internet
+- **No External Servers** - PingMeet talks only to Google/Microsoft APIs; there
+  is no PingMeet backend
+- **Tokens stored securely** - Access tokens live in `chrome.storage.session`
+  (in-memory, wiped on browser close) and never touch disk; only the refresh
+  token and metadata persist locally so you stay signed in across restarts
+- **Minimal scopes** - Calendar read/write and your email address, nothing more
+- **Works Offline** - Once events are loaded, reminders fire without internet
 
 ## 🛠️ Development
 
@@ -107,8 +127,8 @@ MIT License - feel free to use this project however you'd like!
 
 ## 🐛 Known Issues
 
-- Extension requires Google Calendar tab to be open
-- May need manual refresh if calendar is updated in another tab
+- In open-tab (fallback) mode, a calendar tab must stay open; connecting an
+  account via OAuth removes this requirement
 - Chrome cannot force window focus on all operating systems
 
 ## 💡 Troubleshooting

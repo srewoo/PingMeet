@@ -106,7 +106,7 @@ export class StorageManager {
     return {
       google: events.filter(e => e.source === 'google-api' || e.source === 'google-dom'),
       outlook: events.filter(e => e.source === 'outlook-api' || e.source === 'outlook-dom'),
-      all: events
+      all: events,
     };
   }
 

@@ -3,6 +3,8 @@
  * Tests DOM parsing, event extraction, and API handling
  */
 
+import { jest } from '@jest/globals';
+
 describe('CalendarReader Integration', () => {
   let mockDocument;
   let mockWindow;
@@ -223,10 +225,14 @@ describe('CalendarReader Integration', () => {
       .map(el => {
         const eventId = el.getAttribute('data-eventid');
         const title = el.textContent?.trim();
-        
-        if (!eventId || !title) return null;
-        
-        return { id: eventId, title: title };
+        // A usable event also needs a start time — the 3rd element has an id
+        // and title but no time, so it must be filtered too.
+        const timeMatch = (el.innerHTML || '').match(/\d{1,2}:\d{2}/);
+        const startTime = timeMatch ? timeMatch[0] : null;
+
+        if (!eventId || !title || !startTime) return null;
+
+        return { id: eventId, title, startTime };
       })
       .filter(e => e !== null);
 

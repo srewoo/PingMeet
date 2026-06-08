@@ -40,6 +40,13 @@ export class TimezoneHandler {
    */
   static convertTimezone(date, sourceTimezone) {
     try {
+      // UTC is a no-op: the instant is already absolute, so return the same
+      // moment rather than reconstructing wall-clock fields (which would be
+      // reinterpreted in the runner's local zone and drift the value).
+      if (sourceTimezone === 'UTC' || sourceTimezone === 'Etc/UTC') {
+        return new Date(date.getTime());
+      }
+
       // Use Intl.DateTimeFormat to handle timezone conversion
       const formatter = new Intl.DateTimeFormat('en-US', {
         timeZone: sourceTimezone,
@@ -140,7 +147,7 @@ export class TimezoneHandler {
       });
 
       const tzDate = new Date(formatter.format(now));
-      const tzOffset = (tzDate.getHours() - now.getHours());
+      const tzOffset = tzDate.getHours() - now.getHours();
 
       return tzOffset - localOffset;
     } catch (error) {
@@ -158,22 +165,22 @@ export class TimezoneHandler {
 
     // Common timezone abbreviation to IANA mapping
     const timezoneMap = {
-      'PST': 'America/Los_Angeles',
-      'PDT': 'America/Los_Angeles',
-      'MST': 'America/Denver',
-      'MDT': 'America/Denver',
-      'CST': 'America/Chicago',
-      'CDT': 'America/Chicago',
-      'EST': 'America/New_York',
-      'EDT': 'America/New_York',
-      'GMT': 'Europe/London',
-      'BST': 'Europe/London',
-      'CET': 'Europe/Paris',
-      'CEST': 'Europe/Paris',
-      'IST': 'Asia/Kolkata',
-      'JST': 'Asia/Tokyo',
-      'AEST': 'Australia/Sydney',
-      'AEDT': 'Australia/Sydney',
+      PST: 'America/Los_Angeles',
+      PDT: 'America/Los_Angeles',
+      MST: 'America/Denver',
+      MDT: 'America/Denver',
+      CST: 'America/Chicago',
+      CDT: 'America/Chicago',
+      EST: 'America/New_York',
+      EDT: 'America/New_York',
+      GMT: 'Europe/London',
+      BST: 'Europe/London',
+      CET: 'Europe/Paris',
+      CEST: 'Europe/Paris',
+      IST: 'Asia/Kolkata',
+      JST: 'Asia/Tokyo',
+      AEST: 'Australia/Sydney',
+      AEDT: 'Australia/Sydney',
     };
 
     // Check if it's an abbreviation
@@ -187,8 +194,91 @@ export class TimezoneHandler {
       Intl.DateTimeFormat(undefined, { timeZone: timezoneString });
       return timezoneString;
     } catch (error) {
-      return null;
+      // Not a recognized abbreviation or IANA id — return the input unchanged
+      // so callers keep whatever the source provided rather than losing it.
+      return timezoneString;
     }
+  }
+
+  /**
+   * Map common IANA identifiers to short abbreviations for compact display.
+   */
+  static IANA_TO_ABBR = {
+    'America/Los_Angeles': 'PST',
+    'America/Denver': 'MST',
+    'America/Chicago': 'CST',
+    'America/New_York': 'EST',
+    'Europe/London': 'GMT',
+    'Europe/Paris': 'CET',
+    'Asia/Kolkata': 'IST',
+    'Asia/Tokyo': 'JST',
+    'Australia/Sydney': 'AEST',
+  };
+
+  /**
+   * Validate whether a string is a usable IANA timezone identifier.
+   * @param {string} timezone
+   * @returns {boolean}
+   */
+  static isValidTimezone(timezone) {
+    if (!timezone || typeof timezone !== 'string') return false;
+    try {
+      Intl.DateTimeFormat(undefined, { timeZone: timezone });
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Get a short timezone abbreviation (e.g. "IST", "PST") for the given date.
+   * @param {Date} date - Date to evaluate (defaults to now)
+   * @param {string} timezone - IANA id (defaults to the user's timezone)
+   * @returns {string} A short (<=5 char) abbreviation
+   */
+  static getTimezoneAbbreviation(date = new Date(), timezone = null) {
+    const tz = timezone || this.getUserTimezone();
+    if (this.IANA_TO_ABBR[tz]) return this.IANA_TO_ABBR[tz];
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        timeZoneName: 'short',
+      }).formatToParts(date);
+      const name = parts.find(p => p.type === 'timeZoneName')?.value || '';
+      // Intl may yield long forms like "GMT+5:30"; keep it compact.
+      return (name.slice(0, 5) || 'UTC');
+    } catch (error) {
+      return 'UTC';
+    }
+  }
+
+  /**
+   * Format a timezone for human-readable display.
+   * @param {string} timezone - IANA id (null/undefined → local time)
+   * @returns {string}
+   */
+  static formatTimezone(timezone) {
+    if (!timezone) return 'Local Time';
+    const abbr = this.getTimezoneAbbreviation(new Date(), timezone);
+    const label = timezone.includes('/')
+      ? timezone.split('/').pop().replace(/_/g, ' ')
+      : timezone;
+    return `${label} (${abbr})`;
+  }
+
+  /**
+   * Determine whether a date falls within daylight saving time in the local
+   * environment (compares the date's offset to the year's standard offset).
+   * @param {Date|string} date
+   * @returns {boolean}
+   */
+  static isDST(date = new Date()) {
+    const d = date instanceof Date ? date : new Date(date);
+    const jan = new Date(d.getFullYear(), 0, 1).getTimezoneOffset();
+    const jul = new Date(d.getFullYear(), 6, 1).getTimezoneOffset();
+    // DST is in effect when the current offset is less than the standard
+    // (largest) offset of the year.
+    return Math.max(jan, jul) !== d.getTimezoneOffset();
   }
 
   /**

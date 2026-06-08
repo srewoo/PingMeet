@@ -43,7 +43,7 @@ class DailySummaryPopup {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
     });
 
     // Update stats
@@ -118,8 +118,8 @@ class DailySummaryPopup {
     meetingsList.innerHTML = '';
 
     // Sort events by start time
-    const sortedEvents = [...this.events].sort((a, b) =>
-      new Date(a.startTime) - new Date(b.startTime)
+    const sortedEvents = [...this.events].sort(
+      (a, b) => new Date(a.startTime) - new Date(b.startTime)
     );
 
     for (const event of sortedEvents) {
@@ -154,7 +154,7 @@ class DailySummaryPopup {
     startTimeEl.textContent = startTime.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: true
+      hour12: true,
     });
 
     const durationEl = document.createElement('div');
@@ -243,7 +243,7 @@ class DailySummaryPopup {
     });
 
     // Keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
         window.close();
       }

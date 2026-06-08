@@ -3,6 +3,8 @@
  * Tests Outlook-specific DOM parsing and Microsoft Graph API handling
  */
 
+import { jest } from '@jest/globals';
+
 describe('OutlookReader Integration', () => {
   let mockDocument;
   let mockWindow;

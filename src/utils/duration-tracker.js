@@ -2,7 +2,6 @@
  * Duration Tracker - Tracks time spent in meetings
  */
 
-import { StorageManager } from './storage.js';
 import { logger } from '../utils/logger.js';
 
 export class DurationTracker {
@@ -81,7 +80,12 @@ export class DurationTracker {
     const weekAgo = new Date(today);
     weekAgo.setDate(weekAgo.getDate() - 7);
 
-    const weekDurations = durations.filter(d => new Date(d.startTime) >= weekAgo);
+    // Prefer startTime; fall back to the date field so records that predate
+    // startTime tracking (or partial records) still count toward the week.
+    const weekDurations = durations.filter(d => {
+      const ts = d.startTime || d.date;
+      return ts && new Date(ts) >= weekAgo;
+    });
     return weekDurations.reduce((sum, d) => sum + d.durationMinutes, 0);
   }
 
@@ -102,7 +106,7 @@ export class DurationTracker {
     }
 
     durations.forEach(d => {
-      if (breakdown.hasOwnProperty(d.date)) {
+      if (Object.prototype.hasOwnProperty.call(breakdown, d.date)) {
         breakdown[d.date] += d.durationMinutes;
       }
     });
@@ -121,7 +125,10 @@ export class DurationTracker {
     weekAgo.setDate(weekAgo.getDate() - 7);
 
     const breakdown = {};
-    const weekDurations = durations.filter(d => new Date(d.startTime) >= weekAgo);
+    const weekDurations = durations.filter(d => {
+      const ts = d.startTime || d.date;
+      return ts && new Date(ts) >= weekAgo;
+    });
 
     weekDurations.forEach(d => {
       const platform = d.platform || 'Unknown';
@@ -246,12 +253,15 @@ export class DurationTracker {
       return new Date(d.startTime) >= weekAgo;
     });
 
-    const avgMeetingLength = weekDurations.length > 0
-      ? Math.round(weekDurations.reduce((sum, d) => sum + d.durationMinutes, 0) / weekDurations.length)
-      : 0;
+    const avgMeetingLength =
+      weekDurations.length > 0
+        ? Math.round(
+            weekDurations.reduce((sum, d) => sum + d.durationMinutes, 0) / weekDurations.length
+          )
+        : 0;
 
-    const longestMeeting = weekDurations.reduce((max, d) =>
-      d.durationMinutes > max.durationMinutes ? d : max,
+    const longestMeeting = weekDurations.reduce(
+      (max, d) => (d.durationMinutes > max.durationMinutes ? d : max),
       { durationMinutes: 0 }
     );
 

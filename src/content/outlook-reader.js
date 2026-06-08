@@ -85,7 +85,7 @@ class OutlookReader {
     this.injectPageScript();
 
     // Listen for messages from injected script (multiple message types)
-    window.addEventListener('message', (event) => {
+    window.addEventListener('message', event => {
       // Standard API data (Fetch/XHR)
       if (event.data?.type === 'PINGMEET_CALENDAR_DATA' && event.data?.source === 'outlook') {
         logger.debug('Received Outlook calendar data from page context');
@@ -176,17 +176,33 @@ class OutlookReader {
   mergeEventData(primary, secondary) {
     const merged = { ...primary };
     const fields = [
-      'description', 'location', 'attendees', 'organizer', 'organizerName',
-      'meetingLink', 'recurrence', 'status', 'visibility', 'dialIn',
-      'conferenceId', 'passcode', 'pin', 'phoneNumbers', 'htmlLink'
+      'description',
+      'location',
+      'attendees',
+      'organizer',
+      'organizerName',
+      'meetingLink',
+      'recurrence',
+      'status',
+      'visibility',
+      'dialIn',
+      'conferenceId',
+      'passcode',
+      'pin',
+      'phoneNumbers',
+      'htmlLink',
     ];
 
     fields.forEach(field => {
       if (!merged[field] && secondary[field]) {
         merged[field] = secondary[field];
       }
-      if (Array.isArray(merged[field]) && merged[field].length === 0 &&
-          Array.isArray(secondary[field]) && secondary[field].length > 0) {
+      if (
+        Array.isArray(merged[field]) &&
+        merged[field].length === 0 &&
+        Array.isArray(secondary[field]) &&
+        secondary[field].length > 0
+      ) {
         merged[field] = secondary[field];
       }
     });
@@ -201,7 +217,7 @@ class OutlookReader {
     try {
       const script = document.createElement('script');
       script.src = chrome.runtime.getURL('src/content/injected-script.js');
-      script.onload = function() {
+      script.onload = function () {
         this.remove();
       };
       (document.head || document.documentElement).appendChild(script);
@@ -279,7 +295,7 @@ class OutlookReader {
       // Strategy 1: Event items with data-event-id
       const eventElements = document.querySelectorAll('[data-event-id], [data-eventid]');
       logger.debug(`Found ${eventElements.length} Outlook event elements`);
-      
+
       eventElements.forEach(el => {
         const event = this.parseEventElement(el);
         if (event) events.push(event);
@@ -289,9 +305,11 @@ class OutlookReader {
       const listItems = document.querySelectorAll('[role="listitem"]');
       listItems.forEach(item => {
         const ariaLabel = item.getAttribute('aria-label') || '';
-        if (ariaLabel.toLowerCase().includes('meeting') || 
-            ariaLabel.toLowerCase().includes('event') ||
-            ariaLabel.match(/\d{1,2}:\d{2}/)) {
+        if (
+          ariaLabel.toLowerCase().includes('meeting') ||
+          ariaLabel.toLowerCase().includes('event') ||
+          ariaLabel.match(/\d{1,2}:\d{2}/)
+        ) {
           const event = this.parseListItem(item);
           if (event && !events.find(e => e.title === event.title)) {
             events.push(event);
@@ -325,16 +343,19 @@ class OutlookReader {
    */
   parseEventElement(el) {
     try {
-      const eventId = el.getAttribute('data-event-id') || 
-                     el.getAttribute('data-eventid') ||
-                     `outlook-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const eventId =
+        el.getAttribute('data-event-id') ||
+        el.getAttribute('data-eventid') ||
+        `outlook-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
       const title = this.extractTitle(el);
       if (!title) return null;
 
       const ariaLabel = el.getAttribute('aria-label') || el.textContent || '';
       const startTime = this.extractTime(ariaLabel);
-      const endTime = startTime ? new Date(new Date(startTime).getTime() + 60 * 60 * 1000).toISOString() : null;
+      const endTime = startTime
+        ? new Date(new Date(startTime).getTime() + 60 * 60 * 1000).toISOString()
+        : null;
       const meetingLink = this.extractMeetingLink(el);
 
       return {
@@ -361,7 +382,7 @@ class OutlookReader {
       if (!title || title.length < 3) return null;
 
       const startTime = this.extractTime(ariaLabel || el.textContent);
-      
+
       return {
         id: `outlook-list-${title.replace(/\s+/g, '-').toLowerCase()}`,
         title: title,
@@ -401,13 +422,15 @@ class OutlookReader {
    * Extract title
    */
   extractTitle(el) {
-    const titleEl = el.querySelector('[class*="subject"]') ||
-                   el.querySelector('[role="heading"]') ||
-                   el.querySelector('span');
+    const titleEl =
+      el.querySelector('[class*="subject"]') ||
+      el.querySelector('[role="heading"]') ||
+      el.querySelector('span');
 
-    let title = titleEl?.textContent?.trim() ||
-               el.getAttribute('aria-label')?.split(',')[0]?.trim() ||
-               el.textContent?.trim()?.split('\n')[0];
+    let title =
+      titleEl?.textContent?.trim() ||
+      el.getAttribute('aria-label')?.split(',')[0]?.trim() ||
+      el.textContent?.trim()?.split('\n')[0];
 
     if (title && title.length > 100) title = title.substring(0, 100);
     return title || null;
@@ -466,9 +489,20 @@ class OutlookReader {
     }
 
     // Check for anchor tags with any meeting platform domain
-    const platforms = ['meet.google.com', 'zoom.us', 'zoom.com', 'teams.microsoft.com',
-                      'webex.com', 'gotomeeting.com', 'slack.com', 'discord.gg',
-                      'discord.com', 'skype.com', 'bluejeans.com', 'jit.si'];
+    const platforms = [
+      'meet.google.com',
+      'zoom.us',
+      'zoom.com',
+      'teams.microsoft.com',
+      'webex.com',
+      'gotomeeting.com',
+      'slack.com',
+      'discord.gg',
+      'discord.com',
+      'skype.com',
+      'bluejeans.com',
+      'jit.si',
+    ];
 
     for (const platform of platforms) {
       const anchor = el.querySelector(`a[href*="${platform}"]`);
@@ -523,7 +557,9 @@ class OutlookReader {
         const dialIn = this.extractDialInInfo(item.onlineMeeting, item.body?.content);
 
         // Extract additional meeting info
-        const additionalInfo = this.extractAdditionalMeetingInfo(item.body?.content || item.bodyPreview);
+        const additionalInfo = this.extractAdditionalMeetingInfo(
+          item.body?.content || item.bodyPreview
+        );
 
         events.push({
           id: item.id,
@@ -573,7 +609,7 @@ class OutlookReader {
       phoneNumbers: [],
       conferenceId: null,
       pin: null,
-      provider: null
+      provider: null,
     };
 
     if (onlineMeeting) {
@@ -584,14 +620,14 @@ class OutlookReader {
       if (onlineMeeting.tollNumber) {
         dialIn.phoneNumbers.push({
           number: onlineMeeting.tollNumber,
-          type: 'toll'
+          type: 'toll',
         });
       }
 
       if (onlineMeeting.tollFreeNumber) {
         dialIn.phoneNumbers.push({
           number: onlineMeeting.tollFreeNumber,
-          type: 'tollFree'
+          type: 'tollFree',
         });
       }
 
@@ -600,7 +636,7 @@ class OutlookReader {
           dialIn.phoneNumbers.push({
             number: phone.number,
             type: phone.type,
-            region: phone.region
+            region: phone.region,
           });
         });
       }
@@ -656,7 +692,7 @@ class OutlookReader {
     const info = {
       meetingId: null,
       passcode: null,
-      pin: null
+      pin: null,
     };
 
     if (!text) return info;
@@ -676,10 +712,7 @@ class OutlookReader {
     }
 
     // Passcode patterns
-    const passcodePatterns = [
-      /Passcode[:\s]*([A-Za-z0-9]+)/i,
-      /Password[:\s]*([A-Za-z0-9]+)/i,
-    ];
+    const passcodePatterns = [/Passcode[:\s]*([A-Za-z0-9]+)/i, /Password[:\s]*([A-Za-z0-9]+)/i];
 
     for (const pattern of passcodePatterns) {
       const match = text.match(pattern);
@@ -726,15 +759,17 @@ class OutlookReader {
   observeEventPopups() {
     if (this.contextInvalidated) return;
 
-    this.popupObserver = new MutationObserver((mutations) => {
+    this.popupObserver = new MutationObserver(mutations => {
       if (this.contextInvalidated) return;
 
       mutations.forEach(mutation => {
         mutation.addedNodes.forEach(node => {
           if (node.nodeType === Node.ELEMENT_NODE) {
-            if (node.matches('[role="dialog"]') ||
-                node.querySelector('[role="dialog"]') ||
-                node.matches('[data-event-id]')) {
+            if (
+              node.matches('[role="dialog"]') ||
+              node.querySelector('[role="dialog"]') ||
+              node.matches('[data-event-id]')
+            ) {
               setTimeout(() => this.scrapeEventPopup(node), 100);
             }
           }
@@ -744,7 +779,7 @@ class OutlookReader {
 
     this.popupObserver.observe(document.body, {
       childList: true,
-      subtree: true
+      subtree: true,
     });
 
     logger.debug('Outlook event popup observer active');
@@ -755,9 +790,9 @@ class OutlookReader {
    */
   scrapeEventPopup(popupElement) {
     try {
-      const dialog = popupElement.matches('[role="dialog"]') ?
-                    popupElement :
-                    popupElement.querySelector('[role="dialog"]');
+      const dialog = popupElement.matches('[role="dialog"]')
+        ? popupElement
+        : popupElement.querySelector('[role="dialog"]');
 
       if (!dialog) return;
 
@@ -771,22 +806,20 @@ class OutlookReader {
       const details = { id: eventId, source: 'outlook-dom' };
 
       // Scrape title
-      const titleEl = dialog.querySelector('[role="heading"]') ||
-                     dialog.querySelector('h1, h2');
+      const titleEl = dialog.querySelector('[role="heading"]') || dialog.querySelector('h1, h2');
       if (titleEl) {
         details.title = titleEl.textContent?.trim();
       }
 
       // Scrape description
-      const bodyEl = dialog.querySelector('[data-body]') ||
-                    dialog.querySelector('.event-body');
+      const bodyEl = dialog.querySelector('[data-body]') || dialog.querySelector('.event-body');
       if (bodyEl) {
         details.description = bodyEl.innerHTML;
       }
 
       // Scrape location
-      const locEl = dialog.querySelector('[data-location]') ||
-                   dialog.querySelector('.event-location');
+      const locEl =
+        dialog.querySelector('[data-location]') || dialog.querySelector('.event-location');
       if (locEl) {
         details.location = locEl.textContent?.trim();
       }
@@ -797,7 +830,7 @@ class OutlookReader {
         details.attendees = Array.from(attendeeEls).map(el => ({
           email: el.getAttribute('data-attendee-email'),
           name: el.textContent?.trim(),
-          responseStatus: el.getAttribute('data-response') || 'unknown'
+          responseStatus: el.getAttribute('data-response') || 'unknown',
         }));
       }
 
@@ -809,9 +842,7 @@ class OutlookReader {
         const existingEvent = this.lastEvents.find(e => e.id === eventId);
         if (existingEvent) {
           const merged = this.mergeEventData(existingEvent, details);
-          const updatedEvents = this.lastEvents.map(e =>
-            e.id === eventId ? merged : e
-          );
+          const updatedEvents = this.lastEvents.map(e => (e.id === eventId ? merged : e));
           this.sendToBackground(updatedEvents);
         }
       }
@@ -872,8 +903,14 @@ class OutlookReader {
    */
   hasChanges(newEvents) {
     if (newEvents.length !== this.lastEvents.length) return true;
-    const oldIds = this.lastEvents.map(e => e.id).sort().join(',');
-    const newIds = newEvents.map(e => e.id).sort().join(',');
+    const oldIds = this.lastEvents
+      .map(e => e.id)
+      .sort()
+      .join(',');
+    const newIds = newEvents
+      .map(e => e.id)
+      .sort()
+      .join(',');
     return oldIds !== newIds;
   }
 
@@ -896,38 +933,39 @@ class OutlookReader {
     }
 
     try {
-      chrome.runtime.sendMessage(
-        { type: 'CALENDAR_EVENTS', events: events },
-        (_response) => {
-          // Double-check context validity before checking lastError
-          if (!this.isContextValid()) {
-            this.handleContextInvalidation();
-            return;
-          }
-
-          if (chrome.runtime.lastError) {
-            const error = chrome.runtime.lastError.message || '';
-
-            // Check if context was invalidated
-            if (error.includes('Extension context invalidated') || 
-                error.includes('message port closed') ||
-                error.includes('receiving end does not exist')) {
-              logger.warn('Extension context invalidated. Please refresh the page.');
-              this.handleContextInvalidation();
-            } else {
-              logger.error('Error sending Outlook events', chrome.runtime.lastError);
-            }
-          } else {
-            logger.debug(`Sent ${events.length} Outlook events to background`);
-          }
+      chrome.runtime.sendMessage({ type: 'CALENDAR_EVENTS', events: events }, _response => {
+        // Double-check context validity before checking lastError
+        if (!this.isContextValid()) {
+          this.handleContextInvalidation();
+          return;
         }
-      );
+
+        if (chrome.runtime.lastError) {
+          const error = chrome.runtime.lastError.message || '';
+
+          // Check if context was invalidated
+          if (
+            error.includes('Extension context invalidated') ||
+            error.includes('message port closed') ||
+            error.includes('receiving end does not exist')
+          ) {
+            logger.warn('Extension context invalidated. Please refresh the page.');
+            this.handleContextInvalidation();
+          } else {
+            logger.error('Error sending Outlook events', chrome.runtime.lastError);
+          }
+        } else {
+          logger.debug(`Sent ${events.length} Outlook events to background`);
+        }
+      });
     } catch (error) {
       logger.error('Failed to send message', error);
       // Check if it's a context invalidation error
-      if (error.message && 
-          (error.message.includes('Extension context invalidated') || 
-           error.message.includes('Cannot access'))){
+      if (
+        error.message &&
+        (error.message.includes('Extension context invalidated') ||
+          error.message.includes('Cannot access'))
+      ) {
         this.handleContextInvalidation();
       }
     }
@@ -1068,7 +1106,7 @@ class OutlookReader {
     // Add click handler to button
     const reloadBtn = notification.querySelector('#pingmeet-reload-btn');
     if (reloadBtn) {
-      reloadBtn.onclick = (e) => {
+      reloadBtn.onclick = e => {
         e.stopPropagation();
         window.location.reload();
       };

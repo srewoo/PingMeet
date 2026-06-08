@@ -53,18 +53,18 @@ export class CalendarAPI {
       'fetch',
       'timeout',
       'net::',
-      '-106',  // Chrome ERR_INTERNET_DISCONNECTED
-      '-105',  // Chrome ERR_NAME_NOT_RESOLVED
-      '-102',  // Chrome ERR_CONNECTION_REFUSED
-      '-101',  // Chrome ERR_CONNECTION_RESET
-      '-100',  // Chrome ERR_CONNECTION_CLOSED
-      '-7',    // Chrome ERR_TIMED_OUT
+      '-106', // Chrome ERR_INTERNET_DISCONNECTED
+      '-105', // Chrome ERR_NAME_NOT_RESOLVED
+      '-102', // Chrome ERR_CONNECTION_REFUSED
+      '-101', // Chrome ERR_CONNECTION_RESET
+      '-100', // Chrome ERR_CONNECTION_CLOSED
+      '-7', // Chrome ERR_TIMED_OUT
       'failed to fetch',
       'networkerror',
       'econnrefused',
       'enotfound',
       'etimedout',
-      'econnreset'
+      'econnreset',
     ];
     return networkPatterns.some(pattern => message.includes(pattern));
   }
@@ -84,7 +84,7 @@ export class CalendarAPI {
       'invalid_client',
       'unauthorized_client',
       'access_denied',
-      'invalid_token'
+      'invalid_token',
     ];
     return authPatterns.some(pattern => message.includes(pattern));
   }
@@ -111,16 +111,18 @@ export class CalendarAPI {
     await chrome.storage.local.set({ [this.FAILURE_TRACKING_KEY]: tracking });
 
     // Should disconnect only if failures have persisted for more than the grace period
-    const shouldDisconnect = (now - providerTracking.firstFailure) > this.DISCONNECT_GRACE_PERIOD;
+    const shouldDisconnect = now - providerTracking.firstFailure > this.DISCONNECT_GRACE_PERIOD;
 
-    logger.debug(`${provider} failure tracked - count: ${providerTracking.failureCount}, ` +
-      `first failure: ${new Date(providerTracking.firstFailure).toISOString()}, ` +
-      `should disconnect: ${shouldDisconnect}`);
+    logger.debug(
+      `${provider} failure tracked - count: ${providerTracking.failureCount}, ` +
+        `first failure: ${new Date(providerTracking.firstFailure).toISOString()}, ` +
+        `should disconnect: ${shouldDisconnect}`
+    );
 
     return {
       shouldDisconnect,
       firstFailure: providerTracking.firstFailure,
-      failureCount: providerTracking.failureCount
+      failureCount: providerTracking.failureCount,
     };
   }
 
@@ -173,10 +175,7 @@ export class CalendarAPI {
     for (let i = 0; i < buffer.length; i++) {
       binary += String.fromCharCode(buffer[i]);
     }
-    return btoa(binary)
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '');
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   }
 
   /**
@@ -186,24 +185,60 @@ export class CalendarAPI {
    */
   static notifyTokenExpired(calendarName, mode = null) {
     try {
-      let message = `${calendarName} connection expired. Please reconnect in Settings to continue syncing events.`;
+      let message = `${calendarName} connection expired. Click "Reconnect" below to keep getting meeting reminders.`;
 
       // Add helpful context for Simple Mode failures
       if (mode === 'simple') {
-        message = `${calendarName} (One-Click Mode) connection expired. This can happen after extended periods. ` +
-                  `Please reconnect in Settings. For more reliable connections, consider using Advanced Mode with your own OAuth credentials.`;
+        message =
+          `${calendarName} (One-Click Mode) connection expired. This can happen after extended periods. ` +
+          `Click "Reconnect" below to restore it.`;
       }
 
-      chrome.notifications.create(`token_expired_${Date.now()}`, {
+      // Encode the provider + mode into the notification ID so the
+      // onButtonClicked handler in the service worker can re-auth the right
+      // account in one click — no trip to Settings required.
+      const provider = /google/i.test(calendarName) ? 'google' : 'outlook';
+      const notificationId = `pingmeet_reauth_${provider}_${mode || 'unknown'}_${Date.now()}`;
+
+      chrome.notifications.create(notificationId, {
         type: 'basic',
         iconUrl: chrome.runtime.getURL('assets/icons/icon-128.png'),
         title: 'PingMeet: Calendar Disconnected',
         message: message,
-        priority: 1
+        priority: 2,
+        requireInteraction: true,
+        buttons: [{ title: 'Reconnect' }],
       });
       logger.debug(`${calendarName} token expired notification sent (mode: ${mode || 'unknown'})`);
     } catch (error) {
       logger.error('Error showing token expired notification', error);
+    }
+  }
+
+  /**
+   * Re-authenticate a provider after its connection expired. Used by the
+   * one-click "Reconnect" notification button. Picks the right flow based on
+   * the auth mode the connection was originally created with.
+   * @param {string} provider - 'google' or 'outlook'
+   * @param {string} mode - 'simple' or 'advanced'/'unknown'
+   * @returns {Promise<{success: boolean, error?: string}>}
+   */
+  static async reconnect(provider, mode) {
+    try {
+      if (provider === 'google') {
+        if (mode === 'simple') return await this.connectGoogleSimple();
+        // Advanced mode reuses stored client id/secret (connectGoogle reads
+        // them from storage when not passed explicitly).
+        return await this.connectGoogle();
+      }
+      if (provider === 'outlook') {
+        if (mode === 'simple') return await this.connectOutlookSimple();
+        return await this.connectOutlook();
+      }
+      return { success: false, error: `Unknown provider: ${provider}` };
+    } catch (error) {
+      logger.error('Reconnect failed', error);
+      return { success: false, error: error.message };
     }
   }
 
@@ -255,7 +290,7 @@ export class CalendarAPI {
     const connection = await this.getConnections();
     return {
       google: connection[this.STORAGE_KEY]?.google?.connected || false,
-      outlook: connection[this.STORAGE_KEY]?.outlook?.connected || false
+      outlook: connection[this.STORAGE_KEY]?.outlook?.connected || false,
     };
   }
 
@@ -288,7 +323,7 @@ export class CalendarAPI {
       const redirectUri = this.getRedirectUri();
       const scopes = [
         'https://www.googleapis.com/auth/calendar.events',
-        'https://www.googleapis.com/auth/userinfo.email'
+        'https://www.googleapis.com/auth/userinfo.email',
       ].join(' ');
 
       // Generate PKCE code verifier and challenge
@@ -299,30 +334,27 @@ export class CalendarAPI {
       const authParams = new URLSearchParams({
         client_id: clientId,
         redirect_uri: redirectUri,
-        response_type: 'code',           // Authorization code, not token
+        response_type: 'code', // Authorization code, not token
         scope: scopes,
-        access_type: 'offline',          // Request refresh token
+        access_type: 'offline', // Request refresh token
         prompt: 'consent',
         code_challenge: codeChallenge,
-        code_challenge_method: 'S256'
+        code_challenge_method: 'S256',
       });
 
       const authUrl = `${this.GOOGLE_AUTH_URL}?${authParams.toString()}`;
 
       // Launch OAuth flow
       const responseUrl = await new Promise((resolve, reject) => {
-        chrome.identity.launchWebAuthFlow(
-          { url: authUrl, interactive: true },
-          (response) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else if (!response) {
-              reject(new Error('No response from OAuth flow'));
-            } else {
-              resolve(response);
-            }
+        chrome.identity.launchWebAuthFlow({ url: authUrl, interactive: true }, response => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else if (!response) {
+            reject(new Error('No response from OAuth flow'));
+          } else {
+            resolve(response);
           }
-        );
+        });
       });
 
       // Extract authorization code from response URL
@@ -338,15 +370,15 @@ export class CalendarAPI {
         client_id: clientId,
         client_secret: clientSecret,
         code: authCode,
-        code_verifier: codeVerifier,   // PKCE proof
+        code_verifier: codeVerifier, // PKCE proof
         grant_type: 'authorization_code',
-        redirect_uri: redirectUri
+        redirect_uri: redirectUri,
       };
 
       const tokenResponse = await fetch(this.GOOGLE_TOKEN_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams(tokenParams)
+        body: new URLSearchParams(tokenParams),
       });
 
       if (!tokenResponse.ok) {
@@ -362,7 +394,7 @@ export class CalendarAPI {
       }
 
       // Calculate expiry time
-      const expiresAt = Date.now() + (parseInt(expires_in) * 1000);
+      const expiresAt = Date.now() + parseInt(expires_in) * 1000;
 
       // Verify token by fetching user info
       const userInfo = await this.fetchGoogleUserInfo(access_token);
@@ -372,9 +404,9 @@ export class CalendarAPI {
         connected: true,
         email: userInfo.email,
         accessToken: access_token,
-        refreshToken: refresh_token,     // Save refresh token for auto-refresh
+        refreshToken: refresh_token, // Save refresh token for auto-refresh
         expiresAt: expiresAt,
-        connectedAt: new Date().toISOString()
+        connectedAt: new Date().toISOString(),
       });
 
       logger.debug('Connected to Google Calendar with refresh token', userInfo.email);
@@ -394,7 +426,7 @@ export class CalendarAPI {
     try {
       // Use chrome.identity.getAuthToken for simplified auth
       const token = await new Promise((resolve, reject) => {
-        chrome.identity.getAuthToken({ interactive: true }, (token) => {
+        chrome.identity.getAuthToken({ interactive: true }, token => {
           if (chrome.runtime.lastError) {
             logger.error('chrome.identity.getAuthToken error:', chrome.runtime.lastError.message);
             reject(new Error(chrome.runtime.lastError.message));
@@ -417,9 +449,9 @@ export class CalendarAPI {
         connected: true,
         email: userInfo.email,
         accessToken: token,
-        authMode: 'simple',  // Mark as simple auth mode
-        expiresAt: Date.now() + (3600 * 1000),  // Chrome tokens typically last 1 hour
-        connectedAt: new Date().toISOString()
+        authMode: 'simple', // Mark as simple auth mode
+        expiresAt: Date.now() + 3600 * 1000, // Chrome tokens typically last 1 hour
+        connectedAt: new Date().toISOString(),
       });
 
       logger.debug('Connected to Google Calendar (Simple Mode)', userInfo.email);
@@ -438,7 +470,12 @@ export class CalendarAPI {
    * @param {number} retries - Number of retries (default MAX_RETRY_ATTEMPTS)
    * @returns {Promise<Object>} New tokens
    */
-  static async refreshGoogleToken(refreshToken, clientId, clientSecret, retries = CalendarAPI.MAX_RETRY_ATTEMPTS) {
+  static async refreshGoogleToken(
+    refreshToken,
+    clientId,
+    clientSecret,
+    retries = CalendarAPI.MAX_RETRY_ATTEMPTS
+  ) {
     let lastError;
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -447,7 +484,7 @@ export class CalendarAPI {
         const params = {
           client_id: clientId,
           refresh_token: refreshToken,
-          grant_type: 'refresh_token'
+          grant_type: 'refresh_token',
         };
 
         // Include client_secret if provided (required for Web Application OAuth clients)
@@ -458,7 +495,7 @@ export class CalendarAPI {
         const response = await fetch(this.GOOGLE_TOKEN_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams(params)
+          body: new URLSearchParams(params),
         });
 
         if (!response.ok) {
@@ -472,9 +509,11 @@ export class CalendarAPI {
         logger.warn(`Google token refresh attempt ${attempt} failed:`, error.message);
 
         // Don't retry on auth errors (invalid_grant, etc.)
-        if (error.message.includes('invalid_grant') || 
-            error.message.includes('expired') ||
-            error.message.includes('revoked')) {
+        if (
+          error.message.includes('invalid_grant') ||
+          error.message.includes('expired') ||
+          error.message.includes('revoked')
+        ) {
           throw error;
         }
 
@@ -500,7 +539,9 @@ export class CalendarAPI {
       if (googleConnection?.accessToken) {
         // Revoke token on Google's end
         try {
-          await fetch(`https://accounts.google.com/o/oauth2/revoke?token=${googleConnection.accessToken}`);
+          await fetch(
+            `https://accounts.google.com/o/oauth2/revoke?token=${googleConnection.accessToken}`
+          );
         } catch (e) {
           // Ignore revoke errors
         }
@@ -540,8 +581,8 @@ export class CalendarAPI {
         'openid',
         'profile',
         'email',
-        'offline_access',              // Required for refresh tokens
-        'Calendars.ReadWrite'
+        'offline_access', // Required for refresh tokens
+        'Calendars.ReadWrite',
       ].join(' ');
 
       // Generate PKCE code verifier and challenge
@@ -552,30 +593,27 @@ export class CalendarAPI {
       const authParams = new URLSearchParams({
         client_id: clientId,
         redirect_uri: redirectUri,
-        response_type: 'code',           // Authorization code, not token
+        response_type: 'code', // Authorization code, not token
         scope: scopes,
         response_mode: 'query',
         prompt: 'consent',
         code_challenge: codeChallenge,
-        code_challenge_method: 'S256'
+        code_challenge_method: 'S256',
       });
 
       const authUrl = `${this.MS_AUTH_URL}?${authParams.toString()}`;
 
       // Launch OAuth flow
       const responseUrl = await new Promise((resolve, reject) => {
-        chrome.identity.launchWebAuthFlow(
-          { url: authUrl, interactive: true },
-          (response) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else if (!response) {
-              reject(new Error('No response from OAuth flow'));
-            } else {
-              resolve(response);
-            }
+        chrome.identity.launchWebAuthFlow({ url: authUrl, interactive: true }, response => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else if (!response) {
+            reject(new Error('No response from OAuth flow'));
+          } else {
+            resolve(response);
           }
-        );
+        });
       });
 
       // Extract authorization code from response URL
@@ -594,11 +632,11 @@ export class CalendarAPI {
         body: new URLSearchParams({
           client_id: clientId,
           code: authCode,
-          code_verifier: codeVerifier,   // PKCE proof
+          code_verifier: codeVerifier, // PKCE proof
           grant_type: 'authorization_code',
           redirect_uri: redirectUri,
-          scope: scopes
-        })
+          scope: scopes,
+        }),
       });
 
       if (!tokenResponse.ok) {
@@ -614,7 +652,7 @@ export class CalendarAPI {
       }
 
       // Calculate expiry time
-      const expiresAt = Date.now() + (parseInt(expires_in) * 1000);
+      const expiresAt = Date.now() + parseInt(expires_in) * 1000;
 
       // Try to fetch user info (optional - may fail if User.Read permission not granted)
       let userEmail = 'Connected';
@@ -630,9 +668,9 @@ export class CalendarAPI {
         connected: true,
         email: userEmail,
         accessToken: access_token,
-        refreshToken: refresh_token,     // Save refresh token for auto-refresh
+        refreshToken: refresh_token, // Save refresh token for auto-refresh
         expiresAt: expiresAt,
-        connectedAt: new Date().toISOString()
+        connectedAt: new Date().toISOString(),
       });
 
       logger.debug('Connected to Outlook Calendar with refresh token', userEmail);
@@ -654,7 +692,7 @@ export class CalendarAPI {
         return {
           success: false,
           error: 'One-click Outlook not configured. Please use Advanced mode.',
-          needsAdvanced: true
+          needsAdvanced: true,
         };
       }
 
@@ -666,7 +704,7 @@ export class CalendarAPI {
         'email',
         'offline_access',
         'User.Read',
-        'Calendars.ReadWrite'
+        'Calendars.ReadWrite',
       ].join(' ');
 
       // Generate PKCE code verifier and challenge
@@ -680,27 +718,24 @@ export class CalendarAPI {
         response_type: 'code',
         scope: scopes,
         response_mode: 'query',
-        prompt: 'select_account',  // Let user choose account
+        prompt: 'select_account', // Let user choose account
         code_challenge: codeChallenge,
-        code_challenge_method: 'S256'
+        code_challenge_method: 'S256',
       });
 
       const authUrl = `${this.MS_AUTH_URL}?${authParams.toString()}`;
 
       // Launch OAuth flow
       const responseUrl = await new Promise((resolve, reject) => {
-        chrome.identity.launchWebAuthFlow(
-          { url: authUrl, interactive: true },
-          (response) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else if (!response) {
-              reject(new Error('No response from OAuth flow'));
-            } else {
-              resolve(response);
-            }
+        chrome.identity.launchWebAuthFlow({ url: authUrl, interactive: true }, response => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else if (!response) {
+            reject(new Error('No response from OAuth flow'));
+          } else {
+            resolve(response);
           }
-        );
+        });
       });
 
       // Extract authorization code from response URL
@@ -722,8 +757,8 @@ export class CalendarAPI {
           code_verifier: codeVerifier,
           grant_type: 'authorization_code',
           redirect_uri: redirectUri,
-          scope: scopes
-        })
+          scope: scopes,
+        }),
       });
 
       if (!tokenResponse.ok) {
@@ -739,7 +774,7 @@ export class CalendarAPI {
       }
 
       // Calculate expiry time
-      const expiresAt = Date.now() + (parseInt(expires_in) * 1000);
+      const expiresAt = Date.now() + parseInt(expires_in) * 1000;
 
       // Fetch user info
       let userEmail = 'Connected';
@@ -757,8 +792,8 @@ export class CalendarAPI {
         accessToken: access_token,
         refreshToken: refresh_token,
         expiresAt: expiresAt,
-        authMode: 'simple',  // Mark as simple auth mode
-        connectedAt: new Date().toISOString()
+        authMode: 'simple', // Mark as simple auth mode
+        connectedAt: new Date().toISOString(),
       });
 
       // Save the client ID used (for token refresh)
@@ -779,14 +814,18 @@ export class CalendarAPI {
    * @param {number} retries - Number of retries (default MAX_RETRY_ATTEMPTS)
    * @returns {Promise<Object>} New tokens
    */
-  static async refreshOutlookToken(refreshToken, clientId, retries = CalendarAPI.MAX_RETRY_ATTEMPTS) {
+  static async refreshOutlookToken(
+    refreshToken,
+    clientId,
+    retries = CalendarAPI.MAX_RETRY_ATTEMPTS
+  ) {
     const scopes = [
       'openid',
       'profile',
       'email',
       'offline_access',
       'User.Read',
-      'Calendars.ReadWrite'
+      'Calendars.ReadWrite',
     ].join(' ');
 
     let lastError;
@@ -801,8 +840,8 @@ export class CalendarAPI {
             client_id: clientId,
             refresh_token: refreshToken,
             grant_type: 'refresh_token',
-            scope: scopes
-          })
+            scope: scopes,
+          }),
         });
 
         if (!response.ok) {
@@ -816,9 +855,11 @@ export class CalendarAPI {
         logger.warn(`Outlook token refresh attempt ${attempt} failed:`, error.message);
 
         // Don't retry on auth errors (invalid_grant, etc.)
-        if (error.message.includes('invalid_grant') || 
-            error.message.includes('expired') ||
-            error.message.includes('revoked')) {
+        if (
+          error.message.includes('invalid_grant') ||
+          error.message.includes('expired') ||
+          error.message.includes('revoked')
+        ) {
           throw error;
         }
 
@@ -853,7 +894,7 @@ export class CalendarAPI {
    */
   static async fetchOutlookUserInfo(token) {
     const response = await fetch(`${this.MS_GRAPH_API}/me`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     });
 
     if (!response.ok) {
@@ -870,21 +911,31 @@ export class CalendarAPI {
     const connection = await this.getConnections();
     const outlookConnection = connection[this.STORAGE_KEY]?.outlook;
 
-    if (!outlookConnection?.connected || !outlookConnection?.accessToken) {
+    // Only bail if not connected. As with Google, the access token lives in
+    // chrome.storage.session and is wiped on browser restart, so a missing
+    // token is the normal cold-start case — recover it via the refresh token.
+    if (!outlookConnection?.connected) {
       return null;
     }
 
-    // Check if token is expired (with buffer to refresh proactively)
-    if (outlookConnection.expiresAt && Date.now() > outlookConnection.expiresAt - this.TOKEN_REFRESH_BUFFER_MS) {
-      logger.debug('Outlook token expired or expiring soon, attempting auto-refresh...');
+    const tokenMissing = !outlookConnection.accessToken;
+    const tokenStale =
+      outlookConnection.expiresAt &&
+      Date.now() > outlookConnection.expiresAt - this.TOKEN_REFRESH_BUFFER_MS;
+
+    if (tokenMissing || tokenStale) {
+      logger.debug(
+        `Outlook token needs refresh (missing=${tokenMissing}, stale=${!!tokenStale}), attempting auto-refresh...`
+      );
 
       // Try to refresh using refresh token
       if (outlookConnection.refreshToken) {
         try {
           // Get client ID from credentials, or fall back to OUTLOOK_CLIENT_ID for simple mode
           const credentials = await this.getCredentials('outlook');
-          const clientId = credentials?.clientId ||
-                          (outlookConnection.authMode === 'simple' ? this.OUTLOOK_CLIENT_ID : null);
+          const clientId =
+            credentials?.clientId ||
+            (outlookConnection.authMode === 'simple' ? this.OUTLOOK_CLIENT_ID : null);
 
           if (!clientId) {
             throw new Error('No client ID found for Outlook token refresh');
@@ -893,7 +944,7 @@ export class CalendarAPI {
           const tokens = await this.refreshOutlookToken(outlookConnection.refreshToken, clientId);
 
           // Calculate new expiry time
-          const expiresAt = Date.now() + (parseInt(tokens.expires_in) * 1000);
+          const expiresAt = Date.now() + parseInt(tokens.expires_in) * 1000;
 
           // Update stored tokens
           await this.saveConnection('outlook', {
@@ -901,7 +952,7 @@ export class CalendarAPI {
             accessToken: tokens.access_token,
             // Keep existing refresh token if new one not provided
             refreshToken: tokens.refresh_token || outlookConnection.refreshToken,
-            expiresAt: expiresAt
+            expiresAt: expiresAt,
           });
 
           // Clear any previous failure tracking on success
@@ -922,21 +973,31 @@ export class CalendarAPI {
               await this.saveConnection('outlook', { connected: false });
               this.notifyTokenExpired('Outlook Calendar', outlookConnection.authMode);
             } else {
-              logger.debug(`Transient error for Outlook (attempt ${failureCount}), will retry on next sync`);
+              logger.debug(
+                `Transient error for Outlook (attempt ${failureCount}), will retry on next sync`
+              );
             }
             return null;
           }
 
           // Only for truly fatal auth errors (invalid_grant, revoked, etc.), disconnect immediately
           logger.debug('Fatal auth error detected, disconnecting Outlook immediately');
-          await this.saveConnection('outlook', { connected: false, needsReauth: true, lastAuthError: error?.message });
+          await this.saveConnection('outlook', {
+            connected: false,
+            needsReauth: true,
+            lastAuthError: error?.message,
+          });
           this.notifyTokenExpired('Outlook Calendar', outlookConnection.authMode);
           return null;
         }
       } else {
         // No refresh token available - legacy connection
         logger.debug('No refresh token, need re-authentication');
-        await this.saveConnection('outlook', { connected: false, needsReauth: true, lastAuthError: 'no_refresh_token' });
+        await this.saveConnection('outlook', {
+          connected: false,
+          needsReauth: true,
+          lastAuthError: 'no_refresh_token',
+        });
         this.notifyTokenExpired('Outlook Calendar', outlookConnection.authMode);
         return null;
       }
@@ -965,15 +1026,12 @@ export class CalendarAPI {
         startDateTime: startOfDay.toISOString(),
         endDateTime: endOfDay.toISOString(),
         $orderby: 'start/dateTime',
-        $top: '100'
+        $top: '100',
       });
 
-      const response = await fetch(
-        `${this.MS_GRAPH_API}/me/calendarView?${params}`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+      const response = await fetch(`${this.MS_GRAPH_API}/me/calendarView?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -982,7 +1040,11 @@ export class CalendarAPI {
           const authMode = connection[this.STORAGE_KEY]?.outlook?.authMode;
           await this.saveConnection('outlook', { connected: false });
           this.notifyTokenExpired('Outlook Calendar', authMode);
-          return { success: false, error: 'Token expired. Please reconnect in Settings.', events: [] };
+          return {
+            success: false,
+            error: 'Token expired. Please reconnect in Settings.',
+            events: [],
+          };
         }
         // Get error details
         const errorText = await response.text();
@@ -1007,6 +1069,7 @@ export class CalendarAPI {
   static parseOutlookEvents(items) {
     return items
       .filter(item => item.start?.dateTime) // Only timed events
+      .filter(item => !item.isCancelled) // Skip cancelled meetings — they're not real
       .map(item => ({
         id: `outlook_${item.id}`,
         title: item.subject || 'Untitled Meeting',
@@ -1015,18 +1078,20 @@ export class CalendarAPI {
         location: item.location?.displayName || '',
         description: item.bodyPreview || '',
         meetingLink: this.extractOutlookMeetingLink(item),
-        organizer: item.organizer?.emailAddress ? {
-          name: item.organizer.emailAddress.name,
-          email: item.organizer.emailAddress.address
-        } : null,
+        organizer: item.organizer?.emailAddress
+          ? {
+              name: item.organizer.emailAddress.name,
+              email: item.organizer.emailAddress.address,
+            }
+          : null,
         attendees: (item.attendees || []).map(a => ({
           name: a.emailAddress?.name || a.emailAddress?.address?.split('@')[0],
           email: a.emailAddress?.address,
           responseStatus: this.mapOutlookResponseStatus(a.status?.response),
-          self: false
+          self: false,
         })),
         htmlLink: item.webLink,
-        source: 'outlook-api'
+        source: 'outlook-api',
       }));
   }
 
@@ -1052,7 +1117,7 @@ export class CalendarAPI {
       /https:\/\/[\w-]+\.webex\.com\/[^\s"<]+/i,
       /https:\/\/[\w-]+\.my\.webex\.com\/[^\s"<]+/i,
       /https:\/\/meetings\.ringcentral\.com\/[^\s"<]+/i,
-      /https:\/\/v\.ringcentral\.com\/[^\s"<]+/i
+      /https:\/\/v\.ringcentral\.com\/[^\s"<]+/i,
     ];
 
     for (const pattern of linkPatterns) {
@@ -1068,11 +1133,11 @@ export class CalendarAPI {
    */
   static mapOutlookResponseStatus(status) {
     const statusMap = {
-      'accepted': 'accepted',
-      'tentativelyAccepted': 'tentative',
-      'declined': 'declined',
-      'notResponded': 'needsAction',
-      'none': 'needsAction'
+      accepted: 'accepted',
+      tentativelyAccepted: 'tentative',
+      declined: 'declined',
+      notResponded: 'needsAction',
+      none: 'needsAction',
     };
     return statusMap[status] || 'needsAction';
   }
@@ -1084,13 +1149,26 @@ export class CalendarAPI {
     const connection = await this.getConnections();
     const googleConnection = connection[this.STORAGE_KEY]?.google;
 
-    if (!googleConnection?.connected || !googleConnection?.accessToken) {
+    // Only bail if the user isn't connected at all. The access token itself
+    // lives in chrome.storage.session and is WIPED on every browser restart —
+    // so a missing access token is the normal cold-start case, NOT a reason to
+    // report "disconnected". We recover it below via the refresh path. (This
+    // is what caused the daily "click Connect again" friction.)
+    if (!googleConnection?.connected) {
       return null;
     }
 
-    // Check if token is expired (with buffer to refresh proactively)
-    if (googleConnection.expiresAt && Date.now() > googleConnection.expiresAt - this.TOKEN_REFRESH_BUFFER_MS) {
-      logger.debug('Google token expired or expiring soon, attempting auto-refresh...');
+    // Refresh when the token is missing (session wiped on restart) OR is
+    // expired/expiring within the proactive buffer.
+    const tokenMissing = !googleConnection.accessToken;
+    const tokenStale =
+      googleConnection.expiresAt &&
+      Date.now() > googleConnection.expiresAt - this.TOKEN_REFRESH_BUFFER_MS;
+
+    if (tokenMissing || tokenStale) {
+      logger.debug(
+        `Google token needs refresh (missing=${tokenMissing}, stale=${!!tokenStale}), attempting auto-refresh...`
+      );
 
       // Simple mode: Use chrome.identity to refresh with retry
       if (googleConnection.authMode === 'simple') {
@@ -1101,16 +1179,23 @@ export class CalendarAPI {
           try {
             logger.debug(`Simple mode token refresh attempt ${attempt}/${maxRetries}`);
 
-            // Remove cached token first
-            await new Promise((resolve) => {
-              chrome.identity.removeCachedAuthToken({ token: googleConnection.accessToken }, () => {
-                resolve();
+            // Remove the stale cached token first so Chrome mints a fresh one.
+            // After a browser restart there may be no in-memory access token to
+            // evict — skip the call rather than passing an undefined token.
+            if (googleConnection.accessToken) {
+              await new Promise(resolve => {
+                chrome.identity.removeCachedAuthToken(
+                  { token: googleConnection.accessToken },
+                  () => {
+                    resolve();
+                  }
+                );
               });
-            });
+            }
 
             // Get fresh token
             const newToken = await new Promise((resolve, reject) => {
-              chrome.identity.getAuthToken({ interactive: false }, (token) => {
+              chrome.identity.getAuthToken({ interactive: false }, token => {
                 if (chrome.runtime.lastError) {
                   reject(new Error(chrome.runtime.lastError.message));
                 } else if (!token) {
@@ -1125,7 +1210,7 @@ export class CalendarAPI {
             await this.saveConnection('google', {
               ...googleConnection,
               accessToken: newToken,
-              expiresAt: Date.now() + (3600 * 1000)
+              expiresAt: Date.now() + 3600 * 1000,
             });
 
             // Clear any previous failure tracking on success
@@ -1163,14 +1248,20 @@ export class CalendarAPI {
             await this.saveConnection('google', { connected: false });
             this.notifyTokenExpired('Google Calendar', 'simple');
           } else {
-            logger.debug(`Transient error for Google Simple Mode (attempt ${failureCount}), will retry on next sync`);
+            logger.debug(
+              `Transient error for Google Simple Mode (attempt ${failureCount}), will retry on next sync`
+            );
           }
           return null;
         }
 
         // Only for truly fatal auth errors (invalid_grant, revoked, etc.), disconnect immediately
         logger.debug('Fatal auth error detected, disconnecting Google immediately');
-        await this.saveConnection('google', { connected: false, needsReauth: true, lastAuthError: lastError?.message });
+        await this.saveConnection('google', {
+          connected: false,
+          needsReauth: true,
+          lastAuthError: lastError?.message,
+        });
         this.notifyTokenExpired('Google Calendar', 'simple');
         return null;
       }
@@ -1183,13 +1274,13 @@ export class CalendarAPI {
           }
 
           const tokens = await this.refreshGoogleToken(
-            googleConnection.refreshToken, 
+            googleConnection.refreshToken,
             credentials.clientId,
-            credentials.clientSecret  // Include client secret for Web Application OAuth
+            credentials.clientSecret // Include client secret for Web Application OAuth
           );
 
           // Calculate new expiry time
-          const expiresAt = Date.now() + (parseInt(tokens.expires_in) * 1000);
+          const expiresAt = Date.now() + parseInt(tokens.expires_in) * 1000;
 
           // Update stored tokens
           await this.saveConnection('google', {
@@ -1197,7 +1288,7 @@ export class CalendarAPI {
             accessToken: tokens.access_token,
             // Keep existing refresh token if new one not provided
             refreshToken: tokens.refresh_token || googleConnection.refreshToken,
-            expiresAt: expiresAt
+            expiresAt: expiresAt,
           });
 
           // Clear any previous failure tracking on success
@@ -1218,21 +1309,31 @@ export class CalendarAPI {
               await this.saveConnection('google', { connected: false });
               this.notifyTokenExpired('Google Calendar', 'advanced');
             } else {
-              logger.debug(`Transient error for Google Advanced mode (attempt ${failureCount}), will retry on next sync`);
+              logger.debug(
+                `Transient error for Google Advanced mode (attempt ${failureCount}), will retry on next sync`
+              );
             }
             return null;
           }
 
           // Only for truly fatal auth errors (invalid_grant, revoked, etc.), disconnect immediately
           logger.debug('Fatal auth error detected, disconnecting Google immediately');
-          await this.saveConnection('google', { connected: false, needsReauth: true, lastAuthError: error?.message });
+          await this.saveConnection('google', {
+            connected: false,
+            needsReauth: true,
+            lastAuthError: error?.message,
+          });
           this.notifyTokenExpired('Google Calendar', 'advanced');
           return null;
         }
       } else {
         // No refresh token available - legacy connection
         logger.debug('No refresh token, need re-authentication');
-        await this.saveConnection('google', { connected: false, needsReauth: true, lastAuthError: 'no_refresh_token' });
+        await this.saveConnection('google', {
+          connected: false,
+          needsReauth: true,
+          lastAuthError: 'no_refresh_token',
+        });
         this.notifyTokenExpired('Google Calendar');
         return null;
       }
@@ -1247,7 +1348,7 @@ export class CalendarAPI {
   static async fetchGoogleUserInfo(token) {
     try {
       const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!response.ok) {
@@ -1261,7 +1362,9 @@ export class CalendarAPI {
       // Handle network errors separately
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
         logger.error('Network error fetching user info', error);
-        throw new Error('Network error: Unable to connect to Google. Please check your internet connection.');
+        throw new Error(
+          'Network error: Unable to connect to Google. Please check your internet connection.'
+        );
       }
       throw error;
     }
@@ -1277,7 +1380,7 @@ export class CalendarAPI {
       if (!token) return { success: false, error: 'Not authenticated', calendars: [] };
 
       const response = await fetch(`${this.GOOGLE_CALENDAR_API}/users/me/calendarList`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
         return { success: false, error: `API error: ${response.status}`, calendars: [] };
@@ -1288,7 +1391,7 @@ export class CalendarAPI {
         summary: c.summary,
         primary: !!c.primary,
         backgroundColor: c.backgroundColor,
-        accessRole: c.accessRole
+        accessRole: c.accessRole,
       }));
       return { success: true, calendars };
     } catch (error) {
@@ -1333,7 +1436,7 @@ export class CalendarAPI {
         timeMax: endOfDay.toISOString(),
         singleEvents: 'true',
         orderBy: 'startTime',
-        maxResults: '100'
+        maxResults: '100',
       });
 
       const calendarIds = await this.getEnabledGoogleCalendars();
@@ -1346,7 +1449,10 @@ export class CalendarAPI {
           { headers: { Authorization: `Bearer ${token}` } }
         );
         if (!response.ok) {
-          if (response.status === 401) { tokenExpired = true; break; }
+          if (response.status === 401) {
+            tokenExpired = true;
+            break;
+          }
           if (response.status === 404) {
             // Calendar removed or no longer accessible — skip silently.
             logger.warn(`Calendar ${calId} not found, skipping`);
@@ -1363,10 +1469,16 @@ export class CalendarAPI {
         const authMode = connection[this.STORAGE_KEY]?.google?.authMode;
         await this.saveConnection('google', { connected: false });
         this.notifyTokenExpired('Google Calendar', authMode);
-        return { success: false, error: 'Token expired. Please reconnect in Settings.', events: [] };
+        return {
+          success: false,
+          error: 'Token expired. Please reconnect in Settings.',
+          events: [],
+        };
       }
 
-      logger.debug(`Fetched ${allEvents.length} events across ${calendarIds.length} Google calendar(s)`);
+      logger.debug(
+        `Fetched ${allEvents.length} events across ${calendarIds.length} Google calendar(s)`
+      );
       return { success: true, events: allEvents };
     } catch (error) {
       logger.error('Error fetching Google events', error);
@@ -1380,6 +1492,7 @@ export class CalendarAPI {
   static parseGoogleEvents(items) {
     return items
       .filter(item => item.start?.dateTime) // Only timed events, not all-day
+      .filter(item => item.status !== 'cancelled') // Skip cancelled meetings
       .filter(item => {
         // Skip declined events — user explicitly said no.
         const selfAttendee = (item.attendees || []).find(a => a.self);
@@ -1394,15 +1507,17 @@ export class CalendarAPI {
         location: item.location || '',
         description: item.description || '',
         meetingLink: this.extractMeetingLink(item),
-        organizer: item.organizer ? {
-          name: item.organizer.displayName || item.organizer.email,
-          email: item.organizer.email
-        } : null,
+        organizer: item.organizer
+          ? {
+              name: item.organizer.displayName || item.organizer.email,
+              email: item.organizer.email,
+            }
+          : null,
         attendees: (item.attendees || []).map(a => ({
           name: a.displayName || a.email?.split('@')[0],
           email: a.email,
           responseStatus: a.responseStatus || 'needsAction',
-          self: a.self || false
+          self: a.self || false,
         })),
         htmlLink: item.htmlLink,
         conferenceData: item.conferenceData,
@@ -1413,7 +1528,7 @@ export class CalendarAPI {
         // suppression of reminders.
         eventType: item.eventType || 'default',
         // Source marker
-        source: 'google-api'
+        source: 'google-api',
       }));
   }
 
@@ -1442,7 +1557,7 @@ export class CalendarAPI {
       /https:\/\/[\w-]+\.webex\.com\/[^\s"<]+/i,
       /https:\/\/[\w-]+\.my\.webex\.com\/[^\s"<]+/i,
       /https:\/\/meetings\.ringcentral\.com\/[^\s"<]+/i,
-      /https:\/\/v\.ringcentral\.com\/[^\s"<]+/i
+      /https:\/\/v\.ringcentral\.com\/[^\s"<]+/i,
     ];
 
     for (const pattern of linkPatterns) {
@@ -1465,7 +1580,7 @@ export class CalendarAPI {
     return {
       phoneNumber: phoneEntry.uri?.replace('tel:', '') || phoneEntry.label,
       pin: phoneEntry.pin,
-      regionCode: phoneEntry.regionCode
+      regionCode: phoneEntry.regionCode,
     };
   }
 
@@ -1523,9 +1638,7 @@ export class CalendarAPI {
     const connections = local[this.STORAGE_KEY] || {};
 
     try {
-      const sessionKeys = ['google', 'outlook'].map(
-        p => `${this.SESSION_TOKEN_PREFIX}${p}`
-      );
+      const sessionKeys = ['google', 'outlook'].map(p => `${this.SESSION_TOKEN_PREFIX}${p}`);
       const session = await chrome.storage.session.get(sessionKeys);
       for (const provider of ['google', 'outlook']) {
         const sessionKey = `${this.SESSION_TOKEN_PREFIX}${provider}`;
@@ -1557,6 +1670,49 @@ export class CalendarAPI {
   }
 
   /**
+   * Build a lightweight health snapshot for the popup diagnostics line, so a
+   * silent token failure is visible instead of mysterious. Reports last sync
+   * age and, per connected provider, whether the token is healthy, expiring,
+   * or needs reconnection.
+   * @returns {Promise<{lastSync: string|null, providers: Array<{provider: string, label: string, state: string, expiresInMin: number|null, needsReauth: boolean}>}>}
+   */
+  static async getHealthSnapshot() {
+    const connection = (await this.getConnections())[this.STORAGE_KEY] || {};
+    const lastSync = await this.getLastSync();
+    const now = Date.now();
+
+    const providers = [];
+    for (const [provider, label] of [
+      ['google', 'Google'],
+      ['outlook', 'Outlook'],
+    ]) {
+      const conn = connection[provider];
+      if (!conn?.connected) {
+        if (conn?.needsReauth) {
+          providers.push({
+            provider,
+            label,
+            state: 'needs_reauth',
+            expiresInMin: null,
+            needsReauth: true,
+          });
+        }
+        continue;
+      }
+
+      const expiresInMin = conn.expiresAt ? Math.round((conn.expiresAt - now) / 60000) : null;
+      // Only flag "refreshing" once the token has actually lapsed — within the
+      // proactive buffer it's still valid, so showing the countdown is honest
+      // and less alarming than a perpetual "refreshing…".
+      const state = expiresInMin !== null && expiresInMin <= 0 ? 'refreshing' : 'ok';
+
+      providers.push({ provider, label, state, expiresInMin, needsReauth: false });
+    }
+
+    return { lastSync, providers };
+  }
+
+  /**
    * Create a new Google Calendar event
    */
   static async createGoogleEvent(eventData) {
@@ -1573,14 +1729,14 @@ export class CalendarAPI {
         summary: eventData.title,
         start: {
           dateTime: eventData.startTime,
-          timeZone: timeZone
+          timeZone: timeZone,
         },
         end: {
           dateTime: eventData.endTime,
-          timeZone: timeZone
+          timeZone: timeZone,
         },
         description: eventData.description || '',
-        location: eventData.location || ''
+        location: eventData.location || '',
       };
 
       // Add conference data if meeting link requested
@@ -1588,8 +1744,8 @@ export class CalendarAPI {
         event.conferenceData = {
           createRequest: {
             requestId: `pingmeet_${Date.now()}`,
-            conferenceSolutionKey: { type: 'hangoutsMeet' }
-          }
+            conferenceSolutionKey: { type: 'hangoutsMeet' },
+          },
         };
       }
 
@@ -1598,10 +1754,10 @@ export class CalendarAPI {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
           },
-          body: JSON.stringify(event)
+          body: JSON.stringify(event),
         }
       );
 
@@ -1618,8 +1774,8 @@ export class CalendarAPI {
         event: {
           id: created.id,
           htmlLink: created.htmlLink,
-          meetingLink: created.conferenceData?.entryPoints?.[0]?.uri
-        }
+          meetingLink: created.conferenceData?.entryPoints?.[0]?.uri,
+        },
       };
     } catch (error) {
       logger.error('Error creating Google event', error);
@@ -1644,19 +1800,19 @@ export class CalendarAPI {
         subject: eventData.title,
         start: {
           dateTime: eventData.startTime,
-          timeZone: timeZone
+          timeZone: timeZone,
         },
         end: {
           dateTime: eventData.endTime,
-          timeZone: timeZone
+          timeZone: timeZone,
         },
         body: {
           contentType: 'text',
-          content: eventData.description || ''
+          content: eventData.description || '',
         },
         location: {
-          displayName: eventData.location || ''
-        }
+          displayName: eventData.location || '',
+        },
       };
 
       // Add Teams meeting if requested
@@ -1665,17 +1821,14 @@ export class CalendarAPI {
         event.onlineMeetingProvider = 'teamsForBusiness';
       }
 
-      const response = await fetch(
-        `${this.MS_GRAPH_API}/me/events`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(event)
-        }
-      );
+      const response = await fetch(`${this.MS_GRAPH_API}/me/events`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(event),
+      });
 
       if (!response.ok) {
         const error = await response.json();
@@ -1690,8 +1843,8 @@ export class CalendarAPI {
         event: {
           id: created.id,
           webLink: created.webLink,
-          meetingLink: created.onlineMeeting?.joinUrl
-        }
+          meetingLink: created.onlineMeeting?.joinUrl,
+        },
       };
     } catch (error) {
       logger.error('Error creating Outlook event', error);
@@ -1716,7 +1869,7 @@ export class CalendarAPI {
       const getResponse = await fetch(
         `${this.GOOGLE_CALENDAR_API}/calendars/primary/events/${cleanEventId}`,
         {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
 
@@ -1728,7 +1881,7 @@ export class CalendarAPI {
       const event = await getResponse.json();
 
       // Find the current user's attendee entry and update their response
-      let attendees = event.attendees || [];
+      const attendees = event.attendees || [];
       const userAttendee = attendees.find(a => a.self);
 
       if (userAttendee) {
@@ -1738,7 +1891,7 @@ export class CalendarAPI {
         attendees.push({
           email: event.organizer?.email || '',
           responseStatus: 'declined',
-          self: true
+          self: true,
         });
       }
 
@@ -1748,10 +1901,10 @@ export class CalendarAPI {
         {
           method: 'PATCH',
           headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ attendees })
+          body: JSON.stringify({ attendees }),
         }
       );
 
@@ -1781,20 +1934,17 @@ export class CalendarAPI {
       // Remove prefix if present
       const cleanEventId = eventId.replace(/^(google_|outlook_)/, '');
 
-      const response = await fetch(
-        `${this.MS_GRAPH_API}/me/events/${cleanEventId}/decline`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            comment: 'Declined via PingMeet',
-            sendResponse: true
-          })
-        }
-      );
+      const response = await fetch(`${this.MS_GRAPH_API}/me/events/${cleanEventId}/decline`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          comment: 'Declined via PingMeet',
+          sendResponse: true,
+        }),
+      });
 
       if (!response.ok) {
         const error = await response.json();

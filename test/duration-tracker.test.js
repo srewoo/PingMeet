@@ -97,8 +97,9 @@ describe('DurationTracker', () => {
         title: 'Daily Standup',
         meetingLink: 'https://meet.google.com/abc',
       };
-      const startTime = new Date('2024-01-15T10:00:00Z');
-      const endTime = new Date('2024-01-15T10:30:00Z');
+      // Use recent timestamps so the 30-day retention filter keeps the record.
+      const startTime = new Date();
+      const endTime = new Date(startTime.getTime() + 30 * 60 * 1000);
 
       global.chrome.storage.local.get = jest.fn(() =>
         Promise.resolve({ meeting_durations: [] })
@@ -284,15 +285,21 @@ describe('DurationTracker', () => {
 
       const breakdown = await DurationTracker.getWeeklyBreakdown();
 
-      expect(breakdown).toHaveProperty('Monday');
-      expect(breakdown).toHaveProperty('Tuesday');
-      expect(breakdown).toHaveProperty('Sunday');
+      // Breakdown is keyed by YYYY-MM-DD date strings (consumed as such by
+      // ReportGenerator.renderDailyBreakdown), one per day for the last week.
+      const todayStr = today.toISOString().split('T')[0];
       expect(Object.keys(breakdown)).toHaveLength(7);
+      expect(breakdown).toHaveProperty(todayStr);
+      expect(breakdown[todayStr]).toBe(60);
     });
   });
 
   describe('getPlatformBreakdown', () => {
     test('should categorize meetings by platform', async () => {
+      // Platform breakdown covers the current week, so records need an
+      // in-week timestamp (real records always have one via recordMeeting).
+      const today = new Date().toISOString().split('T')[0];
+
       global.chrome.storage.local.get = jest.fn(() =>
         Promise.resolve({
           meeting_durations: [
@@ -300,16 +307,19 @@ describe('DurationTracker', () => {
               eventId: '1',
               durationMinutes: 30,
               platform: 'Google Meet',
+              date: today,
             },
             {
               eventId: '2',
               durationMinutes: 45,
               platform: 'Zoom',
+              date: today,
             },
             {
               eventId: '3',
               durationMinutes: 20,
               platform: 'Google Meet',
+              date: today,
             },
           ],
         })
@@ -353,8 +363,10 @@ describe('DurationTracker', () => {
       ).toBe('Microsoft Teams');
     });
 
-    test('should return Unknown for unrecognized links', () => {
-      expect(DurationTracker.detectPlatform('https://example.com')).toBe('Unknown');
+    test('should return Other for unrecognized links', () => {
+      // 'Unknown' is reserved for a missing link; a present-but-unrecognized
+      // link is classified 'Other'.
+      expect(DurationTracker.detectPlatform('https://example.com')).toBe('Other');
     });
 
     test('should handle null or undefined', () => {

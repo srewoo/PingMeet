@@ -23,7 +23,9 @@ export class NotificationManager {
     const scheduledDnd = this.isInScheduledDnd(settings);
     const dndActive = manualDnd || scheduledDnd;
     if (dndActive) {
-      logger.debug(`DND active (manual=${manualDnd}, scheduled=${scheduledDnd}) — suppressing loud surfaces`);
+      logger.debug(
+        `DND active (manual=${manualDnd}, scheduled=${scheduledDnd}) — suppressing loud surfaces`
+      );
     }
 
     // Auto-snooze: if the user already has a tab open for this meeting's
@@ -140,17 +142,19 @@ export class NotificationManager {
       meetingLink: event.meetingLink,
       htmlLink: event.htmlLink,
       source: event.source,
-      organizer: event.organizer ? {
-        name: event.organizer.name,
-        email: event.organizer.email
-      } : null,
+      organizer: event.organizer
+        ? {
+            name: event.organizer.name,
+            email: event.organizer.email,
+          }
+        : null,
       attendees: (event.attendees || []).map(a => ({
         name: a.name,
         email: a.email,
         responseStatus: a.responseStatus,
-        self: a.self
+        self: a.self,
       })),
-      dialIn: event.dialIn
+      dialIn: event.dialIn,
     };
   }
 
@@ -255,7 +259,7 @@ export class NotificationManager {
       if (chrome.runtime.getContexts) {
         const existingContexts = await chrome.runtime.getContexts({
           contextTypes: ['OFFSCREEN_DOCUMENT'],
-          documentUrls: [offscreenUrl]
+          documentUrls: [offscreenUrl],
         });
 
         if (existingContexts.length > 0) {
@@ -342,9 +346,9 @@ export class NotificationManager {
   /**
    * Speak meeting reminder via Web Speech API
    * @param {Object} event - Meeting event object
-   * @param {Object} settings - User settings
+   * @param {Object} _settings - User settings (reserved; not currently used)
    */
-  static async speakReminder(event, settings) {
+  static async speakReminder(event, _settings) {
     try {
       // Ensure offscreen document exists
       await this.ensureOffscreenDocument();
@@ -362,7 +366,7 @@ export class NotificationManager {
       try {
         await chrome.runtime.sendMessage({
           type: MESSAGE_TYPES.SPEAK_REMINDER,
-          text: speechText
+          text: speechText,
         });
         logger.debug('Voice reminder triggered');
       } catch (msgError) {
@@ -374,7 +378,7 @@ export class NotificationManager {
         await this.sleep(150);
         await chrome.runtime.sendMessage({
           type: MESSAGE_TYPES.SPEAK_REMINDER,
-          text: speechText
+          text: speechText,
         });
         logger.debug('Voice reminder triggered (retry succeeded)');
       }
@@ -416,7 +420,7 @@ export class NotificationManager {
     const day = now.getDay();
     const minutes = now.getHours() * 60 + now.getMinutes();
 
-    const parse = (hhmm) => {
+    const parse = hhmm => {
       const m = String(hhmm || '').match(/^(\d{1,2}):(\d{2})$/);
       if (!m) return null;
       return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);

@@ -100,7 +100,10 @@ class ReminderWindow {
 
     // Build participant display with response status as chips
     const displayAttendees = attendees.slice(0, 3).map(attendee => {
-      const name = typeof attendee === 'string' ? attendee : (attendee.name || attendee.email?.split('@')[0] || 'Unknown');
+      const name =
+        typeof attendee === 'string'
+          ? attendee
+          : attendee.name || attendee.email?.split('@')[0] || 'Unknown';
       const status = typeof attendee === 'object' ? attendee.responseStatus : null;
       const statusClass = this.getResponseStatusClass(status);
       const statusIcon = this.getResponseStatusIcon(status);
@@ -122,10 +125,10 @@ class ReminderWindow {
    */
   getResponseStatusClass(status) {
     const classes = {
-      'accepted': 'status-accepted',
-      'declined': 'status-declined',
-      'tentative': 'status-tentative',
-      'needsAction': 'status-pending'
+      accepted: 'status-accepted',
+      declined: 'status-declined',
+      tentative: 'status-tentative',
+      needsAction: 'status-pending',
     };
     return classes[status] || 'status-pending';
   }
@@ -144,12 +147,12 @@ class ReminderWindow {
    */
   getResponseStatusIcon(status) {
     const icons = {
-      'accepted': '<span class="status-icon status-accepted">Y</span>',
-      'declined': '<span class="status-icon status-declined">N</span>',
-      'tentative': '<span class="status-icon status-tentative">?</span>',
-      'needsAction': '<span class="status-icon status-pending">-</span>',
-      'none': '',
-      'unknown': ''
+      accepted: '<span class="status-icon status-accepted">Y</span>',
+      declined: '<span class="status-icon status-declined">N</span>',
+      tentative: '<span class="status-icon status-tentative">?</span>',
+      needsAction: '<span class="status-icon status-pending">-</span>',
+      none: '',
+      unknown: '',
     };
     return icons[status] || '';
   }
@@ -171,13 +174,13 @@ class ReminderWindow {
     const startTime = start.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: true
+      hour12: true,
     });
 
     const endTime = end.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: true
+      hour12: true,
     });
 
     timeElement.textContent = `${startTime} - ${endTime}`;
@@ -471,7 +474,9 @@ class ReminderWindow {
    */
   setupEventListeners() {
     document.getElementById('joinBtn').addEventListener('click', () => this.join());
-    document.getElementById('lateBtn').addEventListener('click', () => this.sendRunningLateMessage());
+    document
+      .getElementById('lateBtn')
+      .addEventListener('click', () => this.sendRunningLateMessage());
     document.getElementById('snooze30s').addEventListener('click', () => this.snooze(0.5));
     document.getElementById('snooze1m').addEventListener('click', () => this.snooze(1));
     document.getElementById('snooze5m').addEventListener('click', () => this.snooze(5));
@@ -481,7 +486,7 @@ class ReminderWindow {
     document.getElementById('closeBtn').addEventListener('click', () => this.dismiss());
 
     // Close on escape key (bind to instance for cleanup)
-    this.escapeHandler = (e) => {
+    this.escapeHandler = e => {
       if (e.key === 'Escape') {
         this.dismiss();
       }
@@ -495,7 +500,7 @@ class ReminderWindow {
   async sendRunningLateMessage() {
     // Get participant emails
     const recipients = this.getParticipantEmails();
-    
+
     if (recipients.length === 0) {
       // No recipients, just copy to clipboard as fallback
       await this.copyRunningLateMessage();
@@ -505,7 +510,7 @@ class ReminderWindow {
     // Prepare email content
     const subject = `Running late - ${this.event.title}`;
     const body = `Hi All,\n\nI am running a bit late for this meeting, will join soon.`;
-    
+
     // Try to open email compose
     await this.openEmailCompose(recipients, subject, body);
   }
@@ -541,7 +546,11 @@ class ReminderWindow {
       // Get all open tabs to detect Gmail or Outlook
       const tabs = await chrome.tabs.query({});
       const gmailTab = tabs.find(tab => tab.url && tab.url.includes('mail.google.com'));
-      const outlookTab = tabs.find(tab => tab.url && (tab.url.includes('outlook.office.com') || tab.url.includes('outlook.live.com')));
+      const outlookTab = tabs.find(
+        tab =>
+          tab.url &&
+          (tab.url.includes('outlook.office.com') || tab.url.includes('outlook.live.com'))
+      );
 
       const to = recipients.join(',');
       const encodedSubject = encodeURIComponent(subject);
@@ -585,7 +594,7 @@ class ReminderWindow {
     const encodedSubject = encodeURIComponent(subject);
     const encodedBody = encodeURIComponent(body);
     const mailtoUrl = `mailto:${to}?subject=${encodedSubject}&body=${encodedBody}`;
-    
+
     window.open(mailtoUrl, '_blank');
     this.showSuccessFeedback('Opening email client...');
   }
@@ -614,7 +623,7 @@ class ReminderWindow {
     const btn = document.getElementById('lateBtn');
     const originalText = btn.textContent;
     const originalBackground = btn.style.background;
-    
+
     btn.textContent = message;
     btn.style.background = 'rgba(40, 167, 69, 0.3)';
 
@@ -683,7 +692,11 @@ class ReminderWindow {
       if (existing) {
         tab = await chrome.tabs.update(existing.id, { active: true });
         if (existing.windowId !== undefined) {
-          try { await chrome.windows.update(existing.windowId, { focused: true }); } catch { /* ignore */ }
+          try {
+            await chrome.windows.update(existing.windowId, { focused: true });
+          } catch {
+            /* ignore */
+          }
         }
         logger.debug('Focused existing meeting tab:', tab.id);
       } else {
@@ -693,7 +706,7 @@ class ReminderWindow {
 
       await chrome.runtime.sendMessage({
         type: 'MEETING_TAB_OPENED',
-        tabId: tab.id
+        tabId: tab.id,
       });
     } catch (error) {
       logger.error('Error opening meeting link', error);
@@ -717,11 +730,13 @@ class ReminderWindow {
       const host = m[1];
       const key = m[2].split(/[?#]/)[0].split('/').filter(Boolean)[0] || '';
       if (key.length < 3) return null;
-      return tabs.find(t => {
-        if (!t.url) return null;
-        const u = t.url.toLowerCase();
-        return u.includes(host) && u.includes(key);
-      }) || null;
+      return (
+        tabs.find(t => {
+          if (!t.url) return null;
+          const u = t.url.toLowerCase();
+          return u.includes(host) && u.includes(key);
+        }) || null
+      );
     } catch {
       return null;
     }
@@ -761,7 +776,8 @@ class ReminderWindow {
         event: this.event,
         minutes: minutes,
       });
-      const label = minutes < 1 ? `${minutes * 60} seconds` : `${minutes} minute${minutes > 1 ? 's' : ''}`;
+      const label =
+        minutes < 1 ? `${minutes * 60} seconds` : `${minutes} minute${minutes > 1 ? 's' : ''}`;
       logger.debug(`Snoozed for ${label}`);
     } catch (error) {
       logger.error('Error snoozing', error);
@@ -783,12 +799,12 @@ class ReminderWindow {
 
       // Get participant emails
       const recipients = this.getParticipantEmails();
-      
+
       if (recipients.length > 0) {
         // Send decline email
         const subject = `Unable to attend - ${this.event.title}`;
         const body = `Hi,\n\nUnfortunately, I won't be able to attend "${this.event.title}".\n\nApologies for any inconvenience.\n\nBest regards`;
-        
+
         await this.openEmailCompose(recipients, subject, body);
       } else {
         // Fallback: copy to clipboard

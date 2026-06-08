@@ -14,23 +14,45 @@
           <span class="logo-text">PingMeet</span>
         </div>
         <button class="settings-btn" id="settingsBtn" aria-label="Settings">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+            />
           </svg>
         </button>
       </header>
 
       <!-- API Connection Warning Banner -->
       <div class="api-warning hidden" id="apiWarning">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-          <line x1="12" y1="9" x2="12" y2="13"/>
-          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path
+            d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+          />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
         </svg>
         <div class="api-warning-content">
           <div class="api-warning-title">Using calendar tab detection</div>
-          <div class="api-warning-text">For reliable reminders, connect your calendar API in Settings</div>
+          <div class="api-warning-text">
+            For reliable reminders, connect your calendar API in Settings
+          </div>
         </div>
       </div>
 
@@ -39,19 +61,36 @@
           <div class="status-indicator" id="statusIndicator"></div>
           <div class="status-text" id="statusText">Monitoring calendar...</div>
           <button class="sync-now-btn" id="syncNowBtn" title="Sync now" aria-label="Sync now">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <path d="M1 4v4h4M15 12V8h-4"/>
-              <path d="M13.5 5.5A6 6 0 0 0 2 8M2.5 10.5A6 6 0 0 0 14 8"/>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+            >
+              <path d="M1 4v4h4M15 12V8h-4" />
+              <path d="M13.5 5.5A6 6 0 0 0 2 8M2.5 10.5A6 6 0 0 0 14 8" />
             </svg>
           </button>
         </div>
+        <div class="health-line" id="healthLine" aria-live="polite"></div>
 
         <!-- DND / Focus mode quick-control -->
         <div class="dnd-bar" id="dndBar">
           <div class="dnd-status">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-              <circle cx="8" cy="8" r="6.5"/>
-              <line x1="3.5" y1="3.5" x2="12.5" y2="12.5"/>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+            >
+              <circle cx="8" cy="8" r="6.5" />
+              <line x1="3.5" y1="3.5" x2="12.5" y2="12.5" />
             </svg>
             <span id="dndStatusText">Notifications: ON</span>
           </div>
@@ -59,12 +98,19 @@
             <button class="dnd-btn" data-dnd-minutes="60">1h</button>
             <button class="dnd-btn" data-dnd-minutes="240">4h</button>
             <button class="dnd-btn" data-dnd-minutes="today">Today</button>
-            <button class="dnd-btn" id="snoozeAllBtn" title="Push every pending reminder back 15 min">+15m all</button>
+            <button
+              class="dnd-btn"
+              id="snoozeAllBtn"
+              title="Push every pending reminder back 15 min"
+            >
+              +15m all
+            </button>
             <button class="dnd-btn dnd-off hidden" id="dndOffBtn">Turn off</button>
           </div>
         </div>
 
-        <div class="duration-stats" id="durationStats">
+        <div class="duration-stats" id="durationStats"
+          title="Time you've actually spent in meetings you joined via PingMeet's “Join Meeting” button. It is not your scheduled meeting time.">
           <div class="stat-item">
             <span class="stat-label">Today:</span>
             <span class="stat-value" id="todayDuration">0m</span>
@@ -74,23 +120,43 @@
             <span class="stat-value" id="weekDuration">0h</span>
           </div>
         </div>
+        <p class="duration-stats-hint">
+          Time spent in meetings you joined via PingMeet. Shows 0m until you join a meeting using the reminder's “Join Meeting” button.
+        </p>
 
         <!-- AI Insights Accordion (collapsed by default) -->
         <details class="insights-accordion hidden" id="insightsCard">
           <summary class="insights-summary">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 2.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zM6.5 7.5h3v5h-1v-4h-2v-1z"/>
+              <path
+                d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 2.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zM6.5 7.5h3v5h-1v-4h-2v-1z"
+              />
             </svg>
             <span>Insights</span>
             <div class="insights-summary-right">
               <button class="refresh-insights-btn" id="refreshInsightsBtn" title="Refresh insights">
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M1 4v6h6M15 12V6H9"/>
-                  <path d="M13.5 5.5A6 6 0 0 0 2 8M2.5 10.5A6 6 0 0 0 14 8"/>
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M1 4v6h6M15 12V6H9" />
+                  <path d="M13.5 5.5A6 6 0 0 0 2 8M2.5 10.5A6 6 0 0 0 14 8" />
                 </svg>
               </button>
-              <svg class="insights-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M4 6l4 4 4-4"/>
+              <svg
+                class="insights-chevron"
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M4 6l4 4 4-4" />
               </svg>
             </div>
           </summary>
@@ -104,13 +170,29 @@
         <!-- Quick Event Creation -->
         <div class="quick-create-section">
           <button class="quick-create-btn" id="quickCreateBtn">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="8" y1="3" x2="8" y2="13"/>
-              <line x1="3" y1="8" x2="13" y2="8"/>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="8" y1="3" x2="8" y2="13" />
+              <line x1="3" y1="8" x2="13" y2="8" />
             </svg>
             Quick Create Event
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="info-icon" title="Requires calendar write permission">
-              <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 2.5a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zM6.5 7h3v1h-1v3.5h1v1h-3v-1h1V8h-1V7z"/>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              class="info-icon"
+              title="Requires calendar write permission"
+            >
+              <path
+                d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 2.5a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zM6.5 7h3v1h-1v3.5h1v1h-3v-1h1V8h-1V7z"
+              />
             </svg>
           </button>
         </div>
@@ -217,8 +299,15 @@
                   </div>
                 </div>
                 <button class="connect-toggle-btn" id="googleToggleBtn" title="Configure">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M4 6l4 4 4-4"/>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                  >
+                    <path d="M4 6l4 4 4-4" />
                   </svg>
                 </button>
               </div>
@@ -227,7 +316,9 @@
               <div class="calendar-list hidden" id="googleCalendarList">
                 <div class="calendar-list-header">
                   <span>Sync from</span>
-                  <button class="link-btn" id="googleCalRefreshBtn" title="Refresh calendar list">↻</button>
+                  <button class="link-btn" id="googleCalRefreshBtn" title="Refresh calendar list">
+                    ↻
+                  </button>
                 </div>
                 <div class="calendar-list-items" id="googleCalendarItems">
                   <div class="calendar-list-empty">Loading…</div>
@@ -238,23 +329,58 @@
               <div class="connection-setup hidden" id="googleSetup">
                 <!-- Simple Mode: One-Click Connect -->
                 <div class="simple-connect-section" id="googleSimpleSection">
-                  <div style="background: #dcfce7; padding: 12px; border-radius: 8px; margin-bottom: 12px;">
-                    <div style="font-weight: 600; margin-bottom: 4px;">One-Click Connect</div>
-                    <div style="font-size: 12px; color: #166534;">Click the button below to connect using your browser's Google account. No setup required!</div>
+                  <div
+                    style="
+                      background: #dcfce7;
+                      padding: 12px;
+                      border-radius: 8px;
+                      margin-bottom: 12px;
+                    "
+                  >
+                    <div style="font-weight: 600; margin-bottom: 4px">One-Click Connect</div>
+                    <div style="font-size: 12px; color: #166534">
+                      Click the button below to connect using your browser's Google account. No
+                      setup required!
+                    </div>
                   </div>
                   <button class="connect-btn google-simple-btn" id="googleSimpleConnectBtn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" style="margin-right: 8px;">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    <svg width="16" height="16" viewBox="0 0 24 24" style="margin-right: 8px">
+                      <path
+                        fill="#4285F4"
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                      />
                     </svg>
                     Connect with Google
                   </button>
-                  <button class="connect-btn disconnect hidden" id="googleSimpleDisconnectBtn">Disconnect</button>
+                  <button class="connect-btn disconnect hidden" id="googleSimpleDisconnectBtn">
+                    Disconnect
+                  </button>
 
-                  <div class="mode-switch" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border-color);">
-                    <button class="text-btn" id="showAdvancedGoogleBtn" style="font-size: 12px; color: var(--text-muted);">
+                  <div
+                    class="mode-switch"
+                    style="
+                      margin-top: 16px;
+                      padding-top: 12px;
+                      border-top: 1px solid var(--border-color);
+                    "
+                  >
+                    <button
+                      class="text-btn"
+                      id="showAdvancedGoogleBtn"
+                      style="font-size: 12px; color: var(--text-muted)"
+                    >
                       Advanced: Use custom OAuth credentials →
                     </button>
                   </div>
@@ -262,40 +388,92 @@
 
                 <!-- Advanced Mode: Custom OAuth (hidden by default) -->
                 <div class="advanced-connect-section hidden" id="googleAdvancedSection">
-                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-                    <button class="text-btn" id="showSimpleGoogleBtn" style="font-size: 12px; color: var(--text-muted);">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px">
+                    <button
+                      class="text-btn"
+                      id="showSimpleGoogleBtn"
+                      style="font-size: 12px; color: var(--text-muted)"
+                    >
                       ← Back to Simple Mode
                     </button>
                   </div>
                   <div class="setup-instructions">
-                    <div style="background: #fef3c7; padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 12px;">
-                      <strong>Enterprise/Custom:</strong> Use your own OAuth credentials for full control.
+                    <div
+                      style="
+                        background: #fef3c7;
+                        padding: 10px;
+                        border-radius: 6px;
+                        margin-bottom: 12px;
+                        font-size: 12px;
+                      "
+                    >
+                      <strong>Enterprise/Custom:</strong> Use your own OAuth credentials for full
+                      control.
                     </div>
                     <p><strong>Enter your Google OAuth Client ID to connect:</strong></p>
-                    <ol style="font-size: 13px; line-height: 1.6;">
-                      <li>Go to <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a></li>
+                    <ol style="font-size: 13px; line-height: 1.6">
+                      <li>
+                        Go to
+                        <a href="https://console.cloud.google.com" target="_blank"
+                          >Google Cloud Console</a
+                        >
+                      </li>
                       <li>Create project → Enable <strong>Google Calendar API</strong></li>
-                      <li>Go to <strong>Credentials</strong> → Create OAuth 2.0 Client ID
-                        <ul style="margin: 4px 0 8px 20px;">
+                      <li>
+                        Go to <strong>Credentials</strong> → Create OAuth 2.0 Client ID
+                        <ul style="margin: 4px 0 8px 20px">
                           <li>Application type: <strong>Web application</strong></li>
                           <li>Name: PingMeet (or any name)</li>
                         </ul>
                       </li>
-                      <li>Add redirect URI: <code id="redirectUri" style="font-size: 11px;">https://YOUR_EXTENSION_ID.chromiumapp.org/</code>
-                        <br><span style="font-size: 11px; color: var(--text-muted);">(This URI is auto-generated by Chrome for this extension - copy the exact value shown)</span>
+                      <li>
+                        Add redirect URI:
+                        <code id="redirectUri" style="font-size: 11px"
+                          >https://YOUR_EXTENSION_ID.chromiumapp.org/</code
+                        >
+                        <br /><span style="font-size: 11px; color: var(--text-muted)"
+                          >(This URI is auto-generated by Chrome for this extension - copy the exact
+                          value shown)</span
+                        >
                       </li>
-                      <li>Copy <strong>Client ID</strong> and <strong>Client Secret</strong> below</li>
+                      <li>
+                        Copy <strong>Client ID</strong> and <strong>Client Secret</strong> below
+                      </li>
                     </ol>
-                    <p class="help-note" style="background: #dbeafe; padding: 8px; border-radius: 6px; font-size: 12px; margin-top: 8px;">
-                      <strong>Note:</strong> This connection requires <strong>calendar.events</strong> scope (read & write) to enable quick event creation feature. Your credentials stay in your browser.
+                    <p
+                      class="help-note"
+                      style="
+                        background: #dbeafe;
+                        padding: 8px;
+                        border-radius: 6px;
+                        font-size: 12px;
+                        margin-top: 8px;
+                      "
+                    >
+                      <strong>Note:</strong> This connection requires
+                      <strong>calendar.events</strong> scope (read & write) to enable quick event
+                      creation feature. Your credentials stay in your browser.
                     </p>
                   </div>
                   <div class="setup-form">
-                    <input type="text" id="googleClientId" class="credential-input" placeholder="Enter Client ID (ends with .apps.googleusercontent.com)" />
-                    <input type="password" id="googleClientSecret" class="credential-input" placeholder="Enter Client Secret" style="margin-top: 8px;" />
+                    <input
+                      type="text"
+                      id="googleClientId"
+                      class="credential-input"
+                      placeholder="Enter Client ID (ends with .apps.googleusercontent.com)"
+                    />
+                    <input
+                      type="password"
+                      id="googleClientSecret"
+                      class="credential-input"
+                      placeholder="Enter Client Secret"
+                      style="margin-top: 8px"
+                    />
                     <div class="setup-actions">
                       <button class="connect-btn" id="googleConnectBtn">Connect</button>
-                      <button class="connect-btn disconnect hidden" id="googleDisconnectBtn">Disconnect</button>
+                      <button class="connect-btn disconnect hidden" id="googleDisconnectBtn">
+                        Disconnect
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -313,8 +491,15 @@
                   </div>
                 </div>
                 <button class="connect-toggle-btn" id="outlookToggleBtn" title="Configure">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M4 6l4 4 4-4"/>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                  >
+                    <path d="M4 6l4 4 4-4" />
                   </svg>
                 </button>
               </div>
@@ -323,23 +508,46 @@
               <div class="connection-setup hidden" id="outlookSetup">
                 <!-- Simple Mode: One-Click Connect -->
                 <div class="simple-connect-section" id="outlookSimpleSection">
-                  <div style="background: #dbeafe; padding: 12px; border-radius: 8px; margin-bottom: 12px;">
-                    <div style="font-weight: 600; margin-bottom: 4px;">One-Click Connect</div>
-                    <div style="font-size: 12px; color: #1e40af;">Click the button below to connect with your Microsoft account. No setup required!</div>
+                  <div
+                    style="
+                      background: #dbeafe;
+                      padding: 12px;
+                      border-radius: 8px;
+                      margin-bottom: 12px;
+                    "
+                  >
+                    <div style="font-weight: 600; margin-bottom: 4px">One-Click Connect</div>
+                    <div style="font-size: 12px; color: #1e40af">
+                      Click the button below to connect with your Microsoft account. No setup
+                      required!
+                    </div>
                   </div>
                   <button class="connect-btn outlook-simple-btn" id="outlookSimpleConnectBtn">
-                    <svg width="16" height="16" viewBox="0 0 23 23" style="margin-right: 8px;">
-                      <path fill="#f25022" d="M0 0h11v11H0z"/>
-                      <path fill="#00a4ef" d="M0 12h11v11H0z"/>
-                      <path fill="#7fba00" d="M12 0h11v11H12z"/>
-                      <path fill="#ffb900" d="M12 12h11v11H12z"/>
+                    <svg width="16" height="16" viewBox="0 0 23 23" style="margin-right: 8px">
+                      <path fill="#f25022" d="M0 0h11v11H0z" />
+                      <path fill="#00a4ef" d="M0 12h11v11H0z" />
+                      <path fill="#7fba00" d="M12 0h11v11H12z" />
+                      <path fill="#ffb900" d="M12 12h11v11H12z" />
                     </svg>
                     Connect with Microsoft
                   </button>
-                  <button class="connect-btn disconnect hidden" id="outlookSimpleDisconnectBtn">Disconnect</button>
+                  <button class="connect-btn disconnect hidden" id="outlookSimpleDisconnectBtn">
+                    Disconnect
+                  </button>
 
-                  <div class="mode-switch" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border-color);">
-                    <button class="text-btn" id="showAdvancedOutlookBtn" style="font-size: 12px; color: var(--text-muted);">
+                  <div
+                    class="mode-switch"
+                    style="
+                      margin-top: 16px;
+                      padding-top: 12px;
+                      border-top: 1px solid var(--border-color);
+                    "
+                  >
+                    <button
+                      class="text-btn"
+                      id="showAdvancedOutlookBtn"
+                      style="font-size: 12px; color: var(--text-muted)"
+                    >
                       Advanced: Use custom Azure App →
                     </button>
                   </div>
@@ -347,25 +555,57 @@
 
                 <!-- Advanced Mode: Custom Azure App (hidden by default) -->
                 <div class="advanced-connect-section hidden" id="outlookAdvancedSection">
-                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-                    <button class="text-btn" id="showSimpleOutlookBtn" style="font-size: 12px; color: var(--text-muted);">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px">
+                    <button
+                      class="text-btn"
+                      id="showSimpleOutlookBtn"
+                      style="font-size: 12px; color: var(--text-muted)"
+                    >
                       ← Back to Simple Mode
                     </button>
                   </div>
                   <div class="setup-instructions">
-                    <div style="background: #fef3c7; padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 12px;">
-                      <strong>Enterprise/Custom:</strong> Use your own Azure AD app for full control.
+                    <div
+                      style="
+                        background: #fef3c7;
+                        padding: 10px;
+                        border-radius: 6px;
+                        margin-bottom: 12px;
+                        font-size: 12px;
+                      "
+                    >
+                      <strong>Enterprise/Custom:</strong> Use your own Azure AD app for full
+                      control.
                     </div>
                     <p><strong>Enter your Microsoft Azure App credentials:</strong></p>
-                    <ol style="font-size: 13px; line-height: 1.6;">
-                      <li>Go to <a href="https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps" target="_blank">Azure Portal → App registrations</a></li>
+                    <ol style="font-size: 13px; line-height: 1.6">
+                      <li>
+                        Go to
+                        <a
+                          href="https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps"
+                          target="_blank"
+                          >Azure Portal → App registrations</a
+                        >
+                      </li>
                       <li>Click <strong>"New registration"</strong></li>
                       <li>Name: <strong>PingMeet</strong></li>
-                      <li>Supported account types: <strong>"Accounts in any organizational directory and personal Microsoft accounts"</strong></li>
-                      <li>Redirect URI:
-                        <ul style="margin: 4px 0 8px 20px;">
+                      <li>
+                        Supported account types:
+                        <strong
+                          >"Accounts in any organizational directory and personal Microsoft
+                          accounts"</strong
+                        >
+                      </li>
+                      <li>
+                        Redirect URI:
+                        <ul style="margin: 4px 0 8px 20px">
                           <li>Platform: <strong>Single-page application (SPA)</strong></li>
-                          <li>URI: <code id="outlookRedirectUri" style="font-size: 11px;">https://YOUR_EXTENSION_ID.chromiumapp.org/</code></li>
+                          <li>
+                            URI:
+                            <code id="outlookRedirectUri" style="font-size: 11px"
+                              >https://YOUR_EXTENSION_ID.chromiumapp.org/</code
+                            >
+                          </li>
                         </ul>
                       </li>
                       <li>Add API Permission: <strong>Calendars.ReadWrite</strong></li>
@@ -373,17 +613,26 @@
                     </ol>
                   </div>
                   <div class="setup-form">
-                    <input type="text" id="outlookClientId" class="credential-input" placeholder="Enter Application (client) ID" />
+                    <input
+                      type="text"
+                      id="outlookClientId"
+                      class="credential-input"
+                      placeholder="Enter Application (client) ID"
+                    />
                     <div class="setup-actions">
                       <button class="connect-btn" id="outlookConnectBtn">Connect</button>
-                      <button class="connect-btn disconnect hidden" id="outlookDisconnectBtn">Disconnect</button>
+                      <button class="connect-btn disconnect hidden" id="outlookDisconnectBtn">
+                        Disconnect
+                      </button>
                     </div>
                   </div>
                   <div class="setup-divider">
                     <span>or use without API</span>
                   </div>
                   <div class="setup-form">
-                    <button class="connect-btn secondary" id="outlookOpenBtn">Open Outlook Calendar Tab</button>
+                    <button class="connect-btn secondary" id="outlookOpenBtn">
+                      Open Outlook Calendar Tab
+                    </button>
                   </div>
                 </div>
               </div>
@@ -391,9 +640,14 @@
 
             <div class="privacy-note">
               <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+                <path
+                  d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"
+                />
               </svg>
-              <span>Your credentials and data stay in your browser. Nothing is sent to any external server.</span>
+              <span
+                >Your credentials and data stay in your browser. Nothing is sent to any external
+                server.</span
+              >
             </div>
           </div>
 
@@ -455,7 +709,9 @@
                 <input type="checkbox" id="smartReminderOffset" />
                 <span>Smart reminder timing</span>
               </label>
-              <div class="setting-hint">External meetings: 5 min · Internal: 2 min · Solo: 1 min</div>
+              <div class="setting-hint">
+                External meetings: 5 min · Internal: 2 min · Solo: 1 min
+              </div>
             </div>
 
             <div class="setting-item">
@@ -481,14 +737,26 @@
 
             <div class="setting-item">
               <label for="vipOrganizers">VIP organizers</label>
-              <textarea id="vipOrganizers" rows="2" placeholder="boss@company.com&#10;@important-client.com"></textarea>
-              <div class="setting-hint">One per line. Email or @domain. VIP meetings always alert (override DND).</div>
+              <textarea
+                id="vipOrganizers"
+                rows="2"
+                placeholder="boss@company.com&#10;@important-client.com"
+              ></textarea>
+              <div class="setting-hint">
+                One per line. Email or @domain. VIP meetings always alert (override DND).
+              </div>
             </div>
 
             <div class="setting-item">
               <label for="dndSchedule">Recurring quiet hours</label>
-              <textarea id="dndSchedule" rows="3" placeholder='[{"days":[0,6],"start":"00:00","end":"23:59"}]'></textarea>
-              <div class="setting-hint">JSON array of windows. Days: 0=Sun..6=Sat. Use times in HH:MM 24h.</div>
+              <textarea
+                id="dndSchedule"
+                rows="3"
+                placeholder='[{"days":[0,6],"start":"00:00","end":"23:59"}]'
+              ></textarea>
+              <div class="setting-hint">
+                JSON array of windows. Days: 0=Sun..6=Sat. Use times in HH:MM 24h.
+              </div>
             </div>
           </details>
 
@@ -505,7 +773,7 @@
 
             <div class="ai-key-form" id="aiKeyForm">
               <!-- LLM Provider Selection -->
-              <div class="form-group" style="margin-bottom: 12px;">
+              <div class="form-group" style="margin-bottom: 12px">
                 <label for="aiProvider">LLM Provider</label>
                 <select id="aiProvider" class="ai-select">
                   <option value="openai">OpenAI</option>
@@ -516,7 +784,7 @@
               </div>
 
               <!-- Model Selection -->
-              <div class="form-group" style="margin-bottom: 12px;">
+              <div class="form-group" style="margin-bottom: 12px">
                 <label for="aiModel">Model</label>
                 <select id="aiModel" class="ai-select">
                   <!-- Options will be populated based on provider -->
@@ -532,31 +800,51 @@
               </div>
 
               <!-- Temperature Control -->
-              <div class="form-group" style="margin-bottom: 12px;" id="temperatureGroup">
+              <div class="form-group" style="margin-bottom: 12px" id="temperatureGroup">
                 <label for="aiTemperature">
                   Temperature: <span id="temperatureValue">0.7</span>
-                  <span style="font-size: 11px; color: var(--text-muted); margin-left: 4px;">(0 = focused, 1 = creative)</span>
+                  <span style="font-size: 11px; color: var(--text-muted); margin-left: 4px"
+                    >(0 = focused, 1 = creative)</span
+                  >
                 </label>
-                <input type="range" id="aiTemperature" min="0" max="1" step="0.1" value="0.7" class="temperature-slider" />
+                <input
+                  type="range"
+                  id="aiTemperature"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value="0.7"
+                  class="temperature-slider"
+                />
               </div>
 
               <!-- API Key Input -->
-              <div class="form-group" style="margin-bottom: 12px;">
+              <div class="form-group" style="margin-bottom: 12px">
                 <label for="aiApiKey">API Key</label>
-                <input type="password" id="aiApiKey" class="credential-input"
-                       placeholder="Enter your API key (e.g., sk-...)" />
+                <input
+                  type="password"
+                  id="aiApiKey"
+                  class="credential-input"
+                  placeholder="Enter your API key (e.g., sk-...)"
+                />
               </div>
 
               <!-- Custom Endpoint (for custom provider) -->
-              <div class="form-group hidden" style="margin-bottom: 12px;" id="customEndpointGroup">
+              <div class="form-group hidden" style="margin-bottom: 12px" id="customEndpointGroup">
                 <label for="aiCustomEndpoint">Custom API Endpoint</label>
-                <input type="text" id="aiCustomEndpoint" class="credential-input"
-                       placeholder="https://api.example.com/v1/chat/completions" />
+                <input
+                  type="text"
+                  id="aiCustomEndpoint"
+                  class="credential-input"
+                  placeholder="https://api.example.com/v1/chat/completions"
+                />
               </div>
 
               <div class="ai-key-actions">
                 <button class="connect-btn" id="aiSaveKeyBtn">Save Configuration</button>
-                <button class="connect-btn disconnect hidden" id="aiRemoveKeyBtn">Remove Key</button>
+                <button class="connect-btn disconnect hidden" id="aiRemoveKeyBtn">
+                  Remove Key
+                </button>
               </div>
             </div>
 
@@ -567,23 +855,35 @@
 
             <div class="privacy-note">
               <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+                <path
+                  d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"
+                />
               </svg>
-              <span id="aiPrivacyNote">API key stored locally. Your data is sent directly to the selected provider, never to us.</span>
+              <span id="aiPrivacyNote"
+                >API key stored locally. Your data is sent directly to the selected provider, never
+                to us.</span
+              >
             </div>
           </div>
 
-          <div class="setting-item" style="margin-top: 20px;">
+          <div class="setting-item" style="margin-top: 20px">
             <button class="report-btn" id="weeklyReportBtn">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="2" y="2" width="12" height="12" rx="2"/>
-                <path d="M5 10V7M8 10V5M11 10V8"/>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <rect x="2" y="2" width="12" height="12" rx="2" />
+                <path d="M5 10V7M8 10V5M11 10V8" />
               </svg>
               View Weekly Report
             </button>
           </div>
 
-          <div class="settings-divider" style="margin-top: 16px;"></div>
+          <div class="settings-divider" style="margin-top: 16px"></div>
 
           <!-- Help Section -->
           <div class="help-section">
@@ -594,21 +894,38 @@
               <summary class="help-summary">
                 <span class="help-icon">G</span>
                 <span>Google Calendar Setup</span>
-                <svg class="chevron" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M4 6l4 4 4-4"/>
+                <svg
+                  class="chevron"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M4 6l4 4 4-4" />
                 </svg>
               </summary>
               <div class="help-content">
                 <p><strong>Option 1: Quick Start (No setup)</strong></p>
                 <ol>
-                  <li>Open <a href="https://calendar.google.com" target="_blank">calendar.google.com</a> in a tab</li>
+                  <li>
+                    Open
+                    <a href="https://calendar.google.com" target="_blank">calendar.google.com</a> in
+                    a tab
+                  </li>
                   <li>Keep the tab open while working</li>
                   <li>PingMeet automatically reads your events</li>
                 </ol>
 
                 <p><strong>Option 2: API Integration (Recommended for full details)</strong></p>
                 <ol>
-                  <li>Go to <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a></li>
+                  <li>
+                    Go to
+                    <a href="https://console.cloud.google.com" target="_blank"
+                      >Google Cloud Console</a
+                    >
+                  </li>
                   <li>Create a new project (or select existing)</li>
                   <li>Go to "APIs & Services" → "Library"</li>
                   <li>Search and enable "Google Calendar API"</li>
@@ -619,7 +936,10 @@
                   <li>Copy the Client ID</li>
                   <li>Paste it in the Google Calendar section above and click Connect</li>
                 </ol>
-                <p class="help-note">Your Client ID is stored locally in your browser. Each user needs their own credentials.</p>
+                <p class="help-note">
+                  Your Client ID is stored locally in your browser. Each user needs their own
+                  credentials.
+                </p>
               </div>
             </details>
 
@@ -628,51 +948,94 @@
               <summary class="help-summary">
                 <span class="help-icon outlook-icon">O</span>
                 <span>Outlook Calendar Setup</span>
-                <svg class="chevron" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M4 6l4 4 4-4"/>
+                <svg
+                  class="chevron"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M4 6l4 4 4-4" />
                 </svg>
               </summary>
               <div class="help-content">
                 <p><strong>Option 1: Quick Start (No setup)</strong></p>
                 <ol>
-                  <li>Open <a href="https://outlook.office.com/calendar" target="_blank">outlook.office.com/calendar</a> (Work/School)</li>
-                  <li>Or open <a href="https://outlook.live.com/calendar" target="_blank">outlook.live.com/calendar</a> (Personal)</li>
+                  <li>
+                    Open
+                    <a href="https://outlook.office.com/calendar" target="_blank"
+                      >outlook.office.com/calendar</a
+                    >
+                    (Work/School)
+                  </li>
+                  <li>
+                    Or open
+                    <a href="https://outlook.live.com/calendar" target="_blank"
+                      >outlook.live.com/calendar</a
+                    >
+                    (Personal)
+                  </li>
                   <li>Keep the tab open while working</li>
                   <li>PingMeet automatically reads your events from the page</li>
                 </ol>
 
                 <p><strong>Option 2: API Integration (Recommended for full details)</strong></p>
 
-                <p style="font-weight: 600; margin-top: 12px;">Step 1: Create Azure App Registration</p>
+                <p style="font-weight: 600; margin-top: 12px">
+                  Step 1: Create Azure App Registration
+                </p>
                 <ol>
-                  <li>Go to <a href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank">Azure App Registrations</a></li>
+                  <li>
+                    Go to
+                    <a
+                      href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade"
+                      target="_blank"
+                      >Azure App Registrations</a
+                    >
+                  </li>
                   <li>Click "New registration"</li>
                   <li>Name: PingMeet (or any name you prefer)</li>
-                  <li>Supported account types: <strong>"Accounts in any organizational directory and personal Microsoft accounts"</strong></li>
-                  <li>Redirect URI:
-                    <ul style="margin-top: 4px;">
-                      <li>Platform: <strong>Single-page application (SPA)</strong> - NOT Web application</li>
+                  <li>
+                    Supported account types:
+                    <strong
+                      >"Accounts in any organizational directory and personal Microsoft
+                      accounts"</strong
+                    >
+                  </li>
+                  <li>
+                    Redirect URI:
+                    <ul style="margin-top: 4px">
+                      <li>
+                        Platform: <strong>Single-page application (SPA)</strong> - NOT Web
+                        application
+                      </li>
                       <li>URI: Copy from settings above (starts with https://)</li>
                     </ul>
                   </li>
                   <li>Click "Register"</li>
                 </ol>
 
-                <p style="font-weight: 600; margin-top: 12px;">Step 2: Configure API Permissions</p>
+                <p style="font-weight: 600; margin-top: 12px">Step 2: Configure API Permissions</p>
                 <ol>
                   <li>Go to "API permissions" tab</li>
                   <li>Click "Add a permission"</li>
                   <li>Select "Microsoft Graph" → "Delegated permissions"</li>
                   <li>Search for and add: <strong>Calendars.ReadWrite</strong></li>
                   <li>Click "Add permissions"</li>
-                  <li><strong style="color: #d97706;">Important:</strong> Click "Grant admin consent for [Your Directory]" button</li>
+                  <li>
+                    <strong style="color: #d97706">Important:</strong> Click "Grant admin consent
+                    for [Your Directory]" button
+                  </li>
                 </ol>
 
-                <p style="font-weight: 600; margin-top: 12px;">Step 3: Configure Authentication</p>
+                <p style="font-weight: 600; margin-top: 12px">Step 3: Configure Authentication</p>
                 <ol>
                   <li>Go to "Authentication" tab</li>
-                  <li>Under "Implicit grant and hybrid flows", check both:
-                    <ul style="margin-top: 4px;">
+                  <li>
+                    Under "Implicit grant and hybrid flows", check both:
+                    <ul style="margin-top: 4px">
                       <li>✓ Access tokens (used for implicit flows)</li>
                       <li>✓ ID tokens (used for implicit and hybrid flows)</li>
                     </ul>
@@ -680,7 +1043,9 @@
                   <li>Click "Save" at the top</li>
                 </ol>
 
-                <p style="font-weight: 600; margin-top: 12px;">Step 4: Copy Application ID and Connect</p>
+                <p style="font-weight: 600; margin-top: 12px">
+                  Step 4: Copy Application ID and Connect
+                </p>
                 <ol>
                   <li>Go to "Overview" tab</li>
                   <li>Copy the "Application (client) ID" (GUID format)</li>
@@ -690,30 +1055,66 @@
                   <li>Grant permissions when asked</li>
                 </ol>
 
-                <p class="help-note" style="background: #fef3c7; padding: 8px; border-radius: 6px; margin-top: 12px;">
-                  <strong>Troubleshooting:</strong> If connection fails with "No access token received", ensure you selected <strong>SPA</strong> platform (not Web), granted admin consent, and enabled Access/ID tokens in Authentication settings.
+                <p
+                  class="help-note"
+                  style="background: #fef3c7; padding: 8px; border-radius: 6px; margin-top: 12px"
+                >
+                  <strong>Troubleshooting:</strong> If connection fails with "No access token
+                  received", ensure you selected <strong>SPA</strong> platform (not Web), granted
+                  admin consent, and enabled Access/ID tokens in Authentication settings.
                 </p>
-                <p class="help-note">Your Application ID is stored locally in your browser. Each user needs their own credentials.</p>
+                <p class="help-note">
+                  Your Application ID is stored locally in your browser. Each user needs their own
+                  credentials.
+                </p>
               </div>
             </details>
 
             <!-- Notification Settings -->
             <details class="help-accordion">
               <summary class="help-summary">
-                <svg class="help-icon-svg" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M8 1.5A3.5 3.5 0 0 0 4.5 5v2.947c0 .346-.102.683-.294.97l-1.703 2.556a.5.5 0 0 0 .416.777H13.08a.5.5 0 0 0 .416-.777l-1.703-2.556a1.75 1.75 0 0 1-.293-.97V5A3.5 3.5 0 0 0 8 1.5zM6 13a2 2 0 1 0 4 0H6z"/>
+                <svg
+                  class="help-icon-svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M8 1.5A3.5 3.5 0 0 0 4.5 5v2.947c0 .346-.102.683-.294.97l-1.703 2.556a.5.5 0 0 0 .416.777H13.08a.5.5 0 0 0 .416-.777l-1.703-2.556a1.75 1.75 0 0 1-.293-.97V5A3.5 3.5 0 0 0 8 1.5zM6 13a2 2 0 1 0 4 0H6z"
+                  />
                 </svg>
                 <span>Notification Settings</span>
-                <svg class="chevron" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M4 6l4 4 4-4"/>
+                <svg
+                  class="chevron"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M4 6l4 4 4-4" />
                 </svg>
               </summary>
               <div class="help-content">
-                <p><strong>Alert Time:</strong> How many minutes before the meeting you want to be notified.</p>
+                <p>
+                  <strong>Alert Time:</strong> How many minutes before the meeting you want to be
+                  notified.
+                </p>
                 <p><strong>Play Sound:</strong> Plays an audio alert when notification appears.</p>
-                <p><strong>Show Popup:</strong> Opens a countdown window with meeting details and join button.</p>
-                <p><strong>Auto-open:</strong> Automatically opens the meeting link when reminder shows.</p>
-                <p><strong>Voice Reminder:</strong> Speaks the meeting name and time aloud using text-to-speech.</p>
+                <p>
+                  <strong>Show Popup:</strong> Opens a countdown window with meeting details and
+                  join button.
+                </p>
+                <p>
+                  <strong>Auto-open:</strong> Automatically opens the meeting link when reminder
+                  shows.
+                </p>
+                <p>
+                  <strong>Voice Reminder:</strong> Speaks the meeting name and time aloud using
+                  text-to-speech.
+                </p>
                 <p><strong>Daily Summary:</strong> Shows all your meetings for the day at 10 AM.</p>
               </div>
             </details>
@@ -721,30 +1122,61 @@
             <!-- UI Icons Explained -->
             <details class="help-accordion">
               <summary class="help-summary">
-                <svg class="help-icon-svg" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 3a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm2 8H6v-1h1V8H6V7h3v4h1v1z"/>
+                <svg
+                  class="help-icon-svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 3a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm2 8H6v-1h1V8H6V7h3v4h1v1z"
+                  />
                 </svg>
                 <span>Understanding Icons</span>
-                <svg class="chevron" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M4 6l4 4 4-4"/>
+                <svg
+                  class="chevron"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M4 6l4 4 4-4" />
                 </svg>
               </summary>
               <div class="help-content">
                 <p><strong>Event List Icons:</strong></p>
                 <ul>
-                  <li><strong style="color: #f59e0b;">!</strong> = Scheduling conflict with another meeting</li>
-                  <li><strong style="color: #3b82f6;">G</strong> = Event from Google Calendar</li>
-                  <li><strong style="color: #0ea5e9;">O</strong> = Event from Outlook Calendar</li>
+                  <li>
+                    <strong style="color: #f59e0b">!</strong> = Scheduling conflict with another
+                    meeting
+                  </li>
+                  <li><strong style="color: #3b82f6">G</strong> = Event from Google Calendar</li>
+                  <li><strong style="color: #0ea5e9">O</strong> = Event from Outlook Calendar</li>
                 </ul>
                 <p><strong>Quick Create:</strong></p>
                 <ul>
-                  <li><strong>Add meeting link</strong> = Automatically adds a Google Meet or Microsoft Teams video call link to the event when created</li>
+                  <li>
+                    <strong>Add meeting link</strong> = Automatically adds a Google Meet or
+                    Microsoft Teams video call link to the event when created
+                  </li>
                 </ul>
                 <p><strong>AI Insights:</strong></p>
                 <ul>
-                  <li><strong style="color: #fbbf24;">Warning</strong> = Potential issue (back-to-back meetings, overloaded schedule)</li>
-                  <li><strong style="color: #34d399;">Suggestion</strong> = Actionable recommendation for improvement</li>
-                  <li><strong style="color: #60a5fa;">Info</strong> = General observation about your schedule</li>
+                  <li>
+                    <strong style="color: #fbbf24">Warning</strong> = Potential issue (back-to-back
+                    meetings, overloaded schedule)
+                  </li>
+                  <li>
+                    <strong style="color: #34d399">Suggestion</strong> = Actionable recommendation
+                    for improvement
+                  </li>
+                  <li>
+                    <strong style="color: #60a5fa">Info</strong> = General observation about your
+                    schedule
+                  </li>
                 </ul>
               </div>
             </details>
@@ -752,12 +1184,28 @@
             <!-- Troubleshooting -->
             <details class="help-accordion">
               <summary class="help-summary">
-                <svg class="help-icon-svg" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 12.5a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5zM8 4a.75.75 0 0 1 .75.75v4a.75.75 0 0 1-1.5 0v-4A.75.75 0 0 1 8 4z"/>
+                <svg
+                  class="help-icon-svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 12.5a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5zM8 4a.75.75 0 0 1 .75.75v4a.75.75 0 0 1-1.5 0v-4A.75.75 0 0 1 8 4z"
+                  />
                 </svg>
                 <span>Troubleshooting</span>
-                <svg class="chevron" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M4 6l4 4 4-4"/>
+                <svg
+                  class="chevron"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M4 6l4 4 4-4" />
                 </svg>
               </summary>
               <div class="help-content">

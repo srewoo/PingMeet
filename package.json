@@ -1,6 +1,6 @@
 {
   "name": "pingmeet",
-  "version": "1.6",
+  "version": "1.7",
   "description": "Chrome extension that alerts you 2 minutes before meetings",
   "type": "module",
   "scripts": {

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PingMeet",
-  "version": "1.6",
+  "version": "1.7",
   "description": "Never miss a meeting - Get notified minutes before your meetings start",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjWYlN57+uiaFMPNODrIL/c8mCiqEL9Trpy33UQlDNYaLpjEnkVGW6oKWgiY4Lg5FozEin5VqT+d2jEa0OqG6se7c4FCi+AZd5iVW0LdThyAeQjpYz/Yfwstoo9+ty03iep4GbbOENW0A9jyJecoAWBar8o0+t740mMFfo7UrKUkWZBEqL3a8fdCSdXc73rkFoNoZeWLoJbMTlR55mOvZNHY547KakQ//cx0VECx0yZhCf+HQWc8pUmJcnnAyivdmEquSiiSKYWq9rHB26WGAszqqMNSg4qi3x/dPBs75W5VrySNuqnd12/1czk8l18qQi1YIRetfC7cL8o/4a9CdnQIDAQAB",
   "permissions": [

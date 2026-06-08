@@ -91,8 +91,8 @@ describe('NotificationManager', () => {
     expect(chrome.windows.create).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'popup',
-        width: 400,
-        height: 280,
+        width: 480,
+        height: 620,
         focused: true,
       })
     );

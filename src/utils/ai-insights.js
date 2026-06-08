@@ -26,7 +26,7 @@ export class AIInsights {
   static API_ENDPOINTS = {
     openai: 'https://api.openai.com/v1/chat/completions',
     anthropic: 'https://api.anthropic.com/v1/messages',
-    google: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent'
+    google: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
   };
 
   /**
@@ -124,14 +124,14 @@ IMPORTANT: Return ONLY a valid JSON array (no markdown, no code blocks). Format:
   {"type": "info", "text": "insight text here"}
 ]
 
-Type must be one of: warning, suggestion, info`
+Type must be one of: warning, suggestion, info`,
         },
         {
           role: 'user',
-          content: `Analyze these meetings for today and provide insights:\n${meetingsSummary}`
-        }
+          content: `Analyze these meetings for today and provide insights:\n${meetingsSummary}`,
+        },
       ],
-      max_tokens: 300
+      max_tokens: 300,
     };
 
     // Only add temperature if not a reasoning model
@@ -141,7 +141,7 @@ Type must be one of: warning, suggestion, info`
 
     // Try to use JSON mode if supported (GPT-4o, GPT-4-turbo)
     if (config.model.includes('gpt-4') && !config.model.startsWith('o1')) {
-      requestBody.response_format = { type: "json_object" };
+      requestBody.response_format = { type: 'json_object' };
       // Modify prompt to ensure it asks for JSON object
       requestBody.messages[1].content = `Analyze these meetings for today and provide insights. Return a JSON object with an "insights" array:\n${meetingsSummary}`;
     }
@@ -150,9 +150,9 @@ Type must be one of: warning, suggestion, info`
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`
+        Authorization: `Bearer ${config.apiKey}`,
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -192,7 +192,7 @@ Type must be one of: warning, suggestion, info`
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': config.apiKey,
-        'anthropic-version': '2023-06-01'
+        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
         model: config.model,
@@ -212,10 +212,10 @@ IMPORTANT: Return ONLY a valid JSON array (no markdown, no code blocks). Format:
 
 Type must be one of: warning, suggestion, info
 
-Analyze these meetings for today and provide insights:\n${meetingsSummary}`
-          }
-        ]
-      })
+Analyze these meetings for today and provide insights:\n${meetingsSummary}`,
+          },
+        ],
+      }),
     });
 
     if (!response.ok) {
@@ -237,12 +237,14 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
     const response = await fetch(`${endpoint}?key=${config.apiKey}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: `You are a productivity assistant analyzing meeting schedules. Provide brief, actionable insights about the user's meetings. Focus on: meeting load, potential conflicts, gaps for focus time, and patterns. Keep each insight to 1-2 sentences.
+        contents: [
+          {
+            parts: [
+              {
+                text: `You are a productivity assistant analyzing meeting schedules. Provide brief, actionable insights about the user's meetings. Focus on: meeting load, potential conflicts, gaps for focus time, and patterns. Keep each insight to 1-2 sentences.
 
 IMPORTANT: Return ONLY a valid JSON array (no markdown, no code blocks). Format:
 [
@@ -253,14 +255,16 @@ IMPORTANT: Return ONLY a valid JSON array (no markdown, no code blocks). Format:
 
 Type must be one of: warning, suggestion, info
 
-Analyze these meetings for today and provide insights:\n${meetingsSummary}`
-          }]
-        }],
+Analyze these meetings for today and provide insights:\n${meetingsSummary}`,
+              },
+            ],
+          },
+        ],
         generationConfig: {
           temperature: config.temperature || 0.7,
-          maxOutputTokens: 300
-        }
-      })
+          maxOutputTokens: 300,
+        },
+      }),
     });
 
     if (!response.ok) {
@@ -325,7 +329,8 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
       () => {
         const objects = [];
         // Match individual insight objects
-        const objectPattern = /\{\s*"type"\s*:\s*"([^"]+)"\s*,\s*"text"\s*:\s*"([^"]*(?:\\.[^"]*)*)"\s*\}/g;
+        const objectPattern =
+          /\{\s*"type"\s*:\s*"([^"]+)"\s*,\s*"text"\s*:\s*"([^"]*(?:\\.[^"]*)*)"\s*\}/g;
         let match;
         while ((match = objectPattern.exec(cleanedContent)) !== null) {
           objects.push({ type: match[1], text: match[2].replace(/\\"/g, '"') });
@@ -345,13 +350,13 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
           if (typeMatch && textMatch) {
             objects.push({
               type: typeMatch[1],
-              text: textMatch[1].replace(/\\n/g, ' ').replace(/\s+/g, ' ').trim()
+              text: textMatch[1].replace(/\\n/g, ' ').replace(/\s+/g, ' ').trim(),
             });
           }
         }
         if (objects.length > 0) return objects;
         throw new Error('No objects found with lenient parsing');
-      }
+      },
     ];
 
     for (let i = 0; i < parseAttempts.length; i++) {
@@ -360,12 +365,15 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
 
         // Ensure it's an array
         if (Array.isArray(parsed)) {
-          logger.debug(`Successfully parsed array with ${parsed.length} insights (attempt ${i + 1})`);
+          logger.debug(
+            `Successfully parsed array with ${parsed.length} insights (attempt ${i + 1})`
+          );
           // Validate and clean each insight
-          return parsed.filter(item => item && typeof item === 'object')
+          return parsed
+            .filter(item => item && typeof item === 'object')
             .map(item => ({
               type: ['warning', 'suggestion', 'info'].includes(item.type) ? item.type : 'info',
-              text: String(item.text || '').trim()
+              text: String(item.text || '').trim(),
             }))
             .filter(item => item.text.length > 0);
         } else if (typeof parsed === 'object' && parsed !== null) {
@@ -389,27 +397,30 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
     const lines = content.split('\n').filter(line => {
       const trimmed = line.trim();
       // Skip empty lines and lines that look like JSON syntax
-      return trimmed && !trimmed.match(/^[\[\]{},]*$/) && trimmed.length > 10;
+      return trimmed && !trimmed.match(/^[[\]{},]*$/) && trimmed.length > 10;
     });
 
     if (lines.length > 0) {
       logger.debug('Using text fallback with', lines.length, 'lines');
-      return lines.slice(0, 5).map(line => {
-        let text = line
-          .replace(/^[-•*]\s*/, '') // Remove bullet points
-          .replace(/^["'{}\[\]]+/, '') // Remove leading JSON chars
-          .replace(/["'{}\[\]]+$/, '') // Remove trailing JSON chars
-          .replace(/^(type|text)\s*:\s*/i, '') // Remove field names
-          .replace(/^(warning|suggestion|info)\s*[,:]?\s*/i, '') // Remove type values
-          .trim();
+      return lines
+        .slice(0, 5)
+        .map(line => {
+          const text = line
+            .replace(/^[-•*]\s*/, '') // Remove bullet points
+            .replace(/^["'{}[\]]+/, '') // Remove leading JSON chars
+            .replace(/["'{}[\]]+$/, '') // Remove trailing JSON chars
+            .replace(/^(type|text)\s*:\s*/i, '') // Remove field names
+            .replace(/^(warning|suggestion|info)\s*[,:]?\s*/i, '') // Remove type values
+            .trim();
 
-        // Determine type from content
-        let type = 'info';
-        if (/warning|concern|careful|attention|alert/i.test(line)) type = 'warning';
-        else if (/suggest|recommend|consider|try|could/i.test(line)) type = 'suggestion';
+          // Determine type from content
+          let type = 'info';
+          if (/warning|concern|careful|attention|alert/i.test(line)) type = 'warning';
+          else if (/suggest|recommend|consider|try|could/i.test(line)) type = 'suggestion';
 
-        return { type, text };
-      }).filter(item => item.text.length > 5);
+          return { type, text };
+        })
+        .filter(item => item.text.length > 5);
     }
 
     return [{ type: 'info', text: 'Unable to parse insights from AI response' }];
@@ -435,12 +446,12 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
     if (todayEvents.length >= AI_CONFIG.MAX_MEETINGS_FOR_CONCERN) {
       insights.push({
         type: 'warning',
-        text: `You have ${todayEvents.length} meetings today. Consider declining non-essential ones.`
+        text: `You have ${todayEvents.length} meetings today. Consider declining non-essential ones.`,
       });
     } else if (todayEvents.length === 0) {
       insights.push({
         type: 'info',
-        text: 'No meetings scheduled for today. Great time for focused work!'
+        text: 'No meetings scheduled for today. Great time for focused work!',
       });
     }
 
@@ -451,10 +462,11 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
       return sum + (end - start) / 60000;
     }, 0);
 
-    if (totalMinutes > 300) { // More than 5 hours
+    if (totalMinutes > 300) {
+      // More than 5 hours
       insights.push({
         type: 'warning',
-        text: `${Math.round(totalMinutes / 60)} hours in meetings today. Schedule breaks!`
+        text: `${Math.round(totalMinutes / 60)} hours in meetings today. Schedule breaks!`,
       });
     }
 
@@ -464,7 +476,7 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
       const block = focusBlocks[0];
       insights.push({
         type: 'suggestion',
-        text: `Focus block available: ${block.start} - ${block.end} (${block.duration}h)`
+        text: `Focus block available: ${block.start} - ${block.end} (${block.duration}h)`,
       });
     }
 
@@ -473,7 +485,7 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
     if (backToBack > 2) {
       insights.push({
         type: 'warning',
-        text: `${backToBack} back-to-back meetings detected. Consider adding buffer time.`
+        text: `${backToBack} back-to-back meetings detected. Consider adding buffer time.`,
       });
     }
 
@@ -489,9 +501,7 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
     const workEnd = AI_CONFIG.DEFAULT_WORK_END_HOUR;
 
     // Sort events by start time
-    const sorted = [...events].sort((a, b) =>
-      new Date(a.startTime) - new Date(b.startTime)
-    );
+    const sorted = [...events].sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
 
     let currentTime = new Date();
     // If current time is before work start, use work start
@@ -512,7 +522,7 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
         blocks.push({
           start: currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
           end: eventStart.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-          duration: Math.round(gapHours * 10) / 10
+          duration: Math.round(gapHours * 10) / 10,
         });
       }
 
@@ -531,7 +541,7 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
       blocks.push({
         start: currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
         end: endOfDay.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-        duration: Math.round(finalGap * 10) / 10
+        duration: Math.round(finalGap * 10) / 10,
       });
     }
 
@@ -542,17 +552,16 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
    * Count back-to-back meetings
    */
   static findBackToBackMeetings(events) {
-    const sorted = [...events].sort((a, b) =>
-      new Date(a.startTime) - new Date(b.startTime)
-    );
+    const sorted = [...events].sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
 
     let count = 0;
     for (let i = 1; i < sorted.length; i++) {
-      const prevEnd = new Date(sorted[i-1].endTime || sorted[i-1].startTime);
+      const prevEnd = new Date(sorted[i - 1].endTime || sorted[i - 1].startTime);
       const currStart = new Date(sorted[i].startTime);
       const gap = (currStart - prevEnd) / 60000; // minutes
 
-      if (gap <= 5) { // 5 minutes or less gap
+      if (gap <= 5) {
+        // 5 minutes or less gap
         count++;
       }
     }
@@ -585,8 +594,8 @@ Analyze these meetings for today and provide insights:\n${meetingsSummary}`
     await chrome.storage.local.set({
       [AI_CONFIG.INSIGHTS_CACHE_KEY]: {
         insights,
-        timestamp: Date.now()
-      }
+        timestamp: Date.now(),
+      },
     });
   }
 
